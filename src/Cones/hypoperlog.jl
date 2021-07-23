@@ -11,12 +11,14 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
 
     point::Vector{T}
     dual_point::Vector{T}
+    dual_grad::Vector{T}
     grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
     hess_fact_updated::Bool
@@ -28,6 +30,7 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
 
     ϕ::T
     ζ::T
+    dual_ϕ::T
     tempw::Vector{T}
 
     function HypoPerLog{T}(
@@ -43,10 +46,12 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
 end
 
 reset_data(cone::HypoPerLog) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = cone.hess_fact_updated = false)
+    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.hess_fact_updated = false)
 
 function setup_extra_data!(cone::HypoPerLog{T}) where {T <: Real}
     d = cone.dim - 2
+    cone.dual_grad = zeros(T, 2 + d)
     cone.tempw = zeros(T, d)
     return cone
 end
@@ -83,8 +88,8 @@ function is_dual_feas(cone::HypoPerLog{T}) where {T <: Real}
 
     if all(>(eps(T)), w) && u < -eps(T)
         v = cone.dual_point[2]
-        sumlog = sum(log(w_i / -u) for w_i in w)
-        return (v - u * (sumlog + length(w)) > eps(T))
+        cone.dual_ϕ = sum(log(w_i / -u) for w_i in w)
+        return (v - u * (cone.dual_ϕ + length(w)) > eps(T))
     end
 
     return false
@@ -106,6 +111,26 @@ function update_grad(cone::HypoPerLog)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::HypoPerLog)
+    u = cone.dual_point[1]
+    v = cone.dual_point[2]
+    @views w = cone.dual_point[3:end]
+    d = length(w)
+    dg = cone.dual_grad
+
+    β = 1 + d - v / u + cone.dual_ϕ
+    # TODO code natively, don't use lambertw and exp
+    bomega = d * lambertw(exp(β / d - log(d)))
+    @assert bomega + d * log(bomega) ≈ β
+
+    dg[1] = (-d - 2 + v / u + 2 * bomega) / (u * (1 - bomega))
+    dg[2] = -1 / (u * (1 - bomega))
+    @. dg[3:end] = bomega / w / (1 - bomega)
+
+    cone.dual_grad_updated = true
+    return dg
 end
 
 function update_hess(cone::HypoPerLog)

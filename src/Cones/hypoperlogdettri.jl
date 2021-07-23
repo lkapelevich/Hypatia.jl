@@ -16,11 +16,13 @@ mutable struct HypoPerLogdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
     hess_fact_updated::Bool
@@ -33,9 +35,13 @@ mutable struct HypoPerLogdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     ϕ::T
     ζ::T
     ζi::T
+    dual_ϕ::T
     mat::Matrix{R}
+    dual_mat::Matrix{R}
     fact_W::Cholesky{R}
+    dual_fact_W::Cholesky{R}
     Wi::Matrix{R}
+    dual_Wi::Matrix{R}
     Wi_vec::Vector{T}
     tempw::Vector{T}
     mat2::Matrix{R}
@@ -58,7 +64,8 @@ mutable struct HypoPerLogdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
 end
 
 reset_data(cone::HypoPerLogdetTri) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = cone.hess_fact_updated = false)
+    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.hess_fact_updated = false)
 
 function setup_extra_data!(
     cone::HypoPerLogdetTri{T, R},
@@ -66,7 +73,10 @@ function setup_extra_data!(
     dim = cone.dim
     d = cone.d
     cone.mat = zeros(R, d, d)
+    cone.dual_mat = zeros(R, d, d)
+    cone.dual_grad = zeros(R, cone.dim)
     cone.Wi = zeros(R, d, d)
+    cone.dual_Wi = zeros(R, d, d)
     cone.Wi_vec = zeros(T, dim - 2)
     cone.tempw = zeros(T, dim - 2)
     cone.mat2 = zeros(R, d, d)
@@ -121,10 +131,12 @@ function is_dual_feas(cone::HypoPerLogdetTri{T}) where {T <: Real}
 
     if u < -eps(T)
         v = cone.dual_point[2]
-        @views svec_to_smat!(cone.mat2, cone.dual_point[3:end], cone.rt2)
-        fact = cholesky!(Hermitian(cone.mat2, :U), check = false)
+        @views svec_to_smat!(cone.dual_mat, cone.dual_point[3:end], cone.rt2)
+        fact = cone.dual_fact_W = cholesky!(Hermitian(cone.dual_mat, :U),
+            check = false)
         if isposdef(fact)
-            return (v - u * (logdet(fact) + cone.d * (1 - log(-u))) > eps(T))
+            cone.dual_ϕ = logdet(fact) - cone.d * log(-u)
+            return (v - u * (cone.dual_ϕ + cone.d) > eps(T))
         end
     end
 
@@ -148,6 +160,28 @@ function update_grad(cone::HypoPerLogdetTri)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::HypoPerLogdetTri)
+    @assert cone.is_feas
+    u = cone.dual_point[1]
+    v = cone.dual_point[2]
+    dg = cone.dual_grad
+    d = cone.d
+
+    β = 1 + d - v / u + cone.dual_ϕ
+    # TODO code natively, don't use lambertw and exp
+    bomega = d * lambertw(exp(β / d - log(d)))
+    @assert bomega + d * log(bomega) ≈ β
+
+    dg[1] = (-d - 2 + v / u + 2 * bomega) / (u * (1 - bomega))
+    dg[2] = -1 / (u * (1 - bomega))
+    inv_fact!(cone.dual_Wi, cone.dual_fact_W)
+    @views smat_to_svec!(dg[3:end], cone.dual_Wi, cone.rt2)
+    @views dg[3:end] .*= bomega / (1 - bomega)
+
+    cone.dual_grad_updated = true
+    return dg
 end
 
 function update_hess(cone::HypoPerLogdetTri)

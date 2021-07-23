@@ -16,11 +16,13 @@ mutable struct HypoRootdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
     hess_fact_updated::Bool
@@ -35,8 +37,11 @@ mutable struct HypoRootdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     ζ::T
     ϕζidi::T
     mat::Matrix{R}
+    dual_mat::Matrix{R}
     fact_W::Cholesky{R}
+    dual_fact_W::Cholesky{R}
     Wi::Matrix{R}
+    dual_Wi::Matrix{R}
     Wi_vec::Vector{T}
     tempw::Vector{T}
     mat2::Matrix{R}
@@ -59,7 +64,8 @@ mutable struct HypoRootdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
 end
 
 reset_data(cone::HypoRootdetTri) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = cone.hess_fact_updated = false)
+    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.hess_fact_updated = false)
 
 function setup_extra_data!(
     cone::HypoRootdetTri{T, R},
@@ -68,7 +74,10 @@ function setup_extra_data!(
     d = cone.d
     cone.di = inv(T(d))
     cone.mat = zeros(R, d, d)
+    cone.dual_mat = zeros(R, d, d)
+    cone.dual_grad = zeros(R, cone.dim)
     cone.Wi = zeros(R, d, d)
+    cone.dual_Wi = zeros(R, d, d)
     cone.Wi_vec = zeros(T, dim - 1)
     cone.tempw = zeros(T, dim - 1)
     cone.mat2 = zeros(R, d, d)
@@ -118,8 +127,9 @@ function is_dual_feas(cone::HypoRootdetTri{T}) where {T <: Real}
     u = cone.dual_point[1]
 
     if u < -eps(T)
-        @views svec_to_smat!(cone.mat2, cone.dual_point[2:end], cone.rt2)
-        fact = cholesky!(Hermitian(cone.mat2, :U), check = false)
+        @views svec_to_smat!(cone.dual_mat, cone.dual_point[2:end], cone.rt2)
+        fact = cone.dual_fact_W = cholesky!(Hermitian(cone.dual_mat, :U),
+            check = false)
         if isposdef(fact)
             return (logdet(fact) - cone.d * log(-u / cone.d) > eps(T))
         end
@@ -142,6 +152,22 @@ function update_grad(cone::HypoRootdetTri)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::HypoRootdetTri)
+    u = cone.dual_point[1]
+    d = cone.d
+    dg = cone.dual_grad
+    dual_ϕ = exp(logdet(cone.dual_fact_W) / d)
+
+    inv_fact!(cone.dual_Wi, cone.dual_fact_W)
+    @views smat_to_svec!(dg[2:end], cone.dual_Wi, cone.rt2)
+    @. @views dg[2:end] *= -1 / (1 + u / d / dual_ϕ)
+
+    dg[1] = -inv(u) - d / (d * dual_ϕ + u)
+
+    cone.dual_grad_updated = true
+    return dg
 end
 
 function update_hess(cone::HypoRootdetTri)

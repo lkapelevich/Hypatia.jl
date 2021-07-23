@@ -19,6 +19,9 @@ import Hypatia.inv_fact!
 
 include("arrayutilities.jl")
 
+# TODO delete
+using LambertW
+
 """
 $(TYPEDEF)
 
@@ -69,6 +72,18 @@ $(SIGNATURES)
 The gradient of the cone's barrier function at the currently-loaded primal point.
 """
 grad(cone::Cone) = (cone.grad_updated ? cone.grad : update_grad(cone))
+
+"""
+$(SIGNATURES)
+
+The gradient of the cone's conjugate barrier function at the currently-loaded
+dual point.
+"""
+dual_grad(cone::Cone) = (cone.dual_grad_updated ? cone.dual_grad :
+    update_dual_grad(cone))
+
+ # FIXME
+update_dual_grad(cone) = nothing
 
 """
 $(SIGNATURES)

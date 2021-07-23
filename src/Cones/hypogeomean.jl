@@ -12,11 +12,13 @@ mutable struct HypoGeoMean{T <: Real} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
     hess_fact_updated::Bool
@@ -30,6 +32,7 @@ mutable struct HypoGeoMean{T <: Real} <: Cone{T}
     ϕ::T
     ζ::T
     ϕζidi::T
+    dual_ϕ::T
     tempw::Vector{T}
 
     function HypoGeoMean{T}(
@@ -45,10 +48,12 @@ mutable struct HypoGeoMean{T <: Real} <: Cone{T}
 end
 
 reset_data(cone::HypoGeoMean) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = cone.hess_fact_updated = false)
+    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.hess_fact_updated = false)
 
 function setup_extra_data!(cone::HypoGeoMean{T}) where {T <: Real}
     d = cone.dim - 1
+    cone.dual_grad = zeros(T, 1 + d)
     cone.di = inv(T(d))
     cone.tempw = zeros(T, d)
     return cone
@@ -88,7 +93,8 @@ function is_dual_feas(cone::HypoGeoMean{T}) where {T <: Real}
     @views w = cone.dual_point[2:end]
 
     if (u < -eps(T)) && all(>(eps(T)), w)
-        return (length(w) * exp(cone.di * sum(log, w)) + u > eps(T))
+        cone.dual_ϕ = exp(cone.di * sum(log, w))
+        return (length(w) * cone.dual_ϕ + u > eps(T))
     end
 
     return false
@@ -107,6 +113,20 @@ function update_grad(cone::HypoGeoMean)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::HypoGeoMean)
+    u = cone.dual_point[1]
+    @views w = cone.dual_point[2:end]
+    d = length(w)
+    dg = cone.dual_grad
+    dual_ϕ = cone.dual_ϕ
+
+    @. @views dg[2:end] = -1 / w / (1 + u / d / dual_ϕ)
+    dg[1] = -inv(u) - d / (d * dual_ϕ + u)
+
+    cone.dual_grad_updated = true
+    return dg
 end
 
 function update_hess(cone::HypoGeoMean)

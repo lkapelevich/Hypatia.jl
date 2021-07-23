@@ -70,6 +70,9 @@ function test_oracles(
     grad = Cones.grad(cone)
     @test dot(point, grad) ≈ -nu atol=tol rtol=tol
 
+    dual_grad = Cones.dual_grad(cone)
+    @test dot(dual_point, dual_grad) ≈ -nu atol=tol rtol=tol
+
     hess = Matrix(Cones.hess(cone))
     inv_hess = Matrix(Cones.inv_hess(cone))
     @test hess * inv_hess ≈ I atol=tol rtol=tol
