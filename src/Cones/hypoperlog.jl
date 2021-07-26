@@ -121,8 +121,8 @@ function update_dual_grad(cone::HypoPerLog)
     dg = cone.dual_grad
 
     β = 1 + d - v / u + cone.dual_ϕ
-    # TODO code natively, don't use lambertw and exp
-    bomega = d * lambertw(exp(β / d - log(d)))
+    @show β / d - log(d)
+    bomega = d * omegawright(β / d - log(d))
     @assert bomega + d * log(bomega) ≈ β
 
     dg[1] = (-d - 2 + v / u + 2 * bomega) / (u * (1 - bomega))

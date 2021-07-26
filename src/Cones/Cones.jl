@@ -18,9 +18,7 @@ import Hypatia.posdef_fact_copy!
 import Hypatia.inv_fact!
 
 include("arrayutilities.jl")
-
-# TODO delete
-using LambertW
+include("logutilities.jl")
 
 """
 $(TYPEDEF)

@@ -14,11 +14,13 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
     hess_fact_updated::Bool
@@ -30,6 +32,7 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
 
     ϕ::T
     ζ::T
+    dual_ϕ::T
     tempw::Vector{T}
 
     function HypoPowerMean{T}(
@@ -48,7 +51,12 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
     end
 end
 
+reset_data(cone::HypoPowerMean) = (cone.feas_updated = cone.grad_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.hess_fact_updated = false)
+
 function setup_extra_data!(cone::HypoPowerMean{T}) where {T <: Real}
+    cone.dual_grad = zeros(T, cone.dim)
     cone.tempw = zeros(T, cone.dim - 1)
     return cone
 end
@@ -95,7 +103,8 @@ function is_dual_feas(cone::HypoPowerMean{T}) where {T <: Real}
 
     if u < -eps(T) && all(>(eps(T)), w)
         sumlog = sum(α_i * log(w_i / α_i) for (α_i, w_i) in zip(α, w))
-        return (exp(sumlog) + u > eps(T))
+        cone.dual_ϕ = exp(sumlog)
+        return (cone.dual_ϕ + u > eps(T))
     end
 
     return false
@@ -113,6 +122,53 @@ function update_grad(cone::HypoPowerMean)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::HypoPowerMean)
+    u = cone.dual_point[1]
+    @views w = cone.dual_point[2:end]
+    d = length(w)
+    dg = cone.dual_grad
+    α = cone.α
+    dual_ϕ = cone.dual_ϕ
+
+    fval(y) = sum(ai * log(y - u * ai) for ai in α) - log(dual_ϕ)
+    fgrad(y) = sum(ai / (y - u * ai) for ai in α)
+    hess_abs(y) = sum(ai / (y - u * ai)^2 for ai in α)
+
+    lower_bound = 0
+    upper_bound = dual_ϕ + u / d
+
+    C = sum(α.^(-2)) / u^2 /
+        (2 * upper_bound * sum(inv.(1 .- u * α * upper_bound)))
+    gap = upper_bound
+
+    while C * gap > 1
+        # uses the fact that function is nondecreasing
+        new_bound = (lower_bound + upper_bound) / 2
+        if fval(new_bound) >= 0
+            upper_bound = new_bound
+        else
+            lower_bound = new_bound
+        end
+        C = hess_abs(lower_bound) / fgrad(upper_bound)
+        gap = upper_bound - lower_bound
+    end
+
+    new_bound = (lower_bound + upper_bound) / 2
+    iter = 0
+    while abs(fval(new_bound)) > 1e-10
+        new_bound -= fval(new_bound) / fgrad(new_bound)
+        iter += 1
+    end
+    # @show iter
+
+    dual_g_ϕ = inv(new_bound)
+    dg[1] = -inv(u) - dual_g_ϕ
+    @views dg[2:end] .= (u * dual_g_ϕ * α .- 1) ./ w
+
+    cone.dual_grad_updated = true
+    return dg
 end
 
 function update_hess(cone::HypoPowerMean)
@@ -169,6 +225,36 @@ function hess_prod!(
         prod[1, j] = c1 / -ζ
         c2 = c1 - c0
         @. prod[2:end, j] = (α * ζiϕ * (c2 + rwi) + rwi) / w
+    end
+
+    return prod
+end
+
+function inv_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::HypoPowerMean{T},
+    ) where {T <: Real}
+    @assert cone.grad_updated
+    u = -cone.grad[1]
+    gu = -cone.point[1]
+    @views ngw = cone.point[2:end]
+    dual_g_ϕ = cone.ϕ
+    tempw = cone.tempw
+    α = cone.α
+    d = length(α)
+    
+    @. tempw = 1 - α * dual_g_ϕ * u
+    s1 = sum(α[i]^2 / tempw[i] for i in 1:d)
+    @inbounds for j in 1:size(arr, 2)
+        p = arr[1, j]
+        @views r = arr[2:end, j]
+        s2 = sum(α[i] * (-r[i] * ngw[i] - α[i] * dual_g_ϕ * p) / tempw[i]
+            for i in 1:d)
+        g_phi_deriv = s2 / (1 + dual_g_ϕ * u * s1) * dual_g_ϕ
+        prod[1, j] = (dual_g_ϕ + gu)^2 * p - g_phi_deriv
+        @. @views prod[2:end, j] = ngw^2 * (r + α * (-p * dual_g_ϕ - u * g_phi_deriv)
+            / -ngw) / tempw
     end
 
     return prod
