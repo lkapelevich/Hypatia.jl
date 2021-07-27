@@ -212,7 +212,7 @@ function update_lhs(syssolver::NaiveElimSparseSystemSolver, solver::Solver)
         end
     end
     tau = solver.point.tau[]
-    syssolver.lhs_sub.nzval[end] = solver.mu / tau / tau
+    syssolver.lhs_sub.nzval[end] = solver.point.kap[] / tau
 
     solver.time_upfact += @elapsed update_fact(syssolver.fact_cache,
         syssolver.lhs_sub)
@@ -299,7 +299,7 @@ function update_lhs(
         end
     end
     tau = solver.point.tau[]
-    lhs_sub[end, end] = solver.mu / tau / tau
+    lhs_sub[end, end] = solver.point.kap[] / tau
 
     solver.time_upfact += @elapsed syssolver.fact =
         nonsymm_fact_copy!(syssolver.lhs_sub_fact, syssolver.lhs_sub)

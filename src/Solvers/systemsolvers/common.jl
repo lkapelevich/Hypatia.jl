@@ -115,7 +115,7 @@ function apply_lhs(
     end
 
     tau = solver.point.tau[]
-    res.kap[] = solver.mu / tau * tau_dir / tau + kap_dir
+    res.kap[] = solver.point.kap[] * tau_dir / tau + kap_dir
 
     return res
 end
@@ -171,7 +171,7 @@ function solve_subsystem4(
     sol_const = syssolver.sol_const
     tau_num = rhs.tau[] + rhs.kap[] + dot_obj(model, sol_sub)
     taubar = solver.point.tau[]
-    tau_denom = solver.mu / taubar / taubar - dot_obj(model, sol_const)
+    tau_denom = solver.point.kap[] / taubar - dot_obj(model, sol_const)
     sol_tau = tau_num / tau_denom
 
     dim3 = length(sol_sub.vec)

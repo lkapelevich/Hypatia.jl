@@ -17,26 +17,27 @@ using Main.Examples
 results_path = joinpath(mkpath(joinpath(@__DIR__, "raw")), "bench.csv")
 
 # script verbosity
-script_verbose = false
+script_verbose = true
 
 # default options to solvers
 default_options = (
-    verbose = false,
-    # verbose = true,
+    # verbose = false,
+    verbose = true,
     default_tol_relax = 10,
     iter_limit = 10000,
     time_limit = 10000,
+    syssolver = Solvers.NaiveDenseSystemSolver{Float64}()
     )
 
 # stepper option sets to run
 porc = Solvers.PredOrCentStepper{Float64}
 comb = Solvers.CombinedStepper{Float64}
 stepper_options = [
-    "basic" => porc(use_adjustment = false, use_curve_search = false,
-        use_max_prox = false, prox_bound = 0.2844),
-    "prox" => porc(use_adjustment = false, use_curve_search = false),
-    "toa" => porc(use_adjustment = true, use_curve_search = false),
-    "curve" => porc(use_adjustment = true, use_curve_search = true),
+    # "basic" => porc(use_adjustment = false, use_curve_search = false,
+    #     use_max_prox = false, prox_bound = 0.2844),
+    # "prox" => porc(use_adjustment = false, use_curve_search = false),
+    # "toa" => porc(use_adjustment = true, use_curve_search = false),
+    # "curve" => porc(use_adjustment = true, use_curve_search = true),
     "comb" => comb(shift_sched = 0),
     ]
 
@@ -44,7 +45,7 @@ stepper_options = [
 inst_sets = [
     # "minimal",
     # "fast",
-    "compile",
+    # "compile",
     "various",
     ]
 

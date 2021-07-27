@@ -67,9 +67,10 @@ function step(stepper::CombinedStepper{T}, solver::Solver{T}) where {T <: Real}
     solver.time_uprhs += @elapsed update_rhs_cent(solver, rhs)
     solver.time_getdir += @elapsed get_directions(stepper, solver)
     copyto!(dir_cent.vec, dir.vec)
-    solver.time_uprhs += @elapsed update_rhs_centadj(solver, rhs, dir)
-    solver.time_getdir += @elapsed get_directions(stepper, solver)
-    copyto!(dir_centadj.vec, dir.vec)
+    # solver.time_uprhs += @elapsed update_rhs_centadj(solver, rhs, dir)
+    # solver.time_getdir += @elapsed get_directions(stepper, solver)
+    # copyto!(dir_centadj.vec, dir.vec)
+    dir_centadj.vec .= 0
 
     # calculate affine/prediction direction and adjustment
     solver.time_uprhs += @elapsed update_rhs_pred(solver, rhs)

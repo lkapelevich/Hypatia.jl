@@ -53,7 +53,7 @@ function update_rhs_predadj(
 
     taubar = solver.point.tau[]
     tau_dir_tau = dir.tau[] / taubar
-    rhs.kap[] = tau_dir_tau * solver.mu / taubar * (1 + tau_dir_tau)
+    rhs.kap[] = dir.tau[] * dir.kap[] / solver.point.tau[]
 
     return rhs
 end

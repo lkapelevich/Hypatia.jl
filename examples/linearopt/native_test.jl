@@ -14,7 +14,7 @@ insts["fast"] = [
     ]
 insts["various"] = [
     ((250, 1000, 0.1),),
-    ((500, 5000, 0.05),),
+    # ((500, 5000, 0.05),),
     ((500, 2000, 1.0),),
     ]
 return (LinearOptNative, insts)
