@@ -43,8 +43,8 @@ function test_oracles(
     Cones.load_dual_point(cone, dual_point)
     @test Cones.is_dual_feas(cone)
     @test cone.dual_point == dual_point
-    @test Cones.get_proxsqr(cone, one(T), true) <= 1 # max proximity
-    @test Cones.get_proxsqr(cone, one(T), false) <= dim # sum proximity
+    # @test Cones.get_proxsqr(cone, one(T), true) <= 1 # max proximity
+    # @test Cones.get_proxsqr(cone, one(T), false) <= dim # sum proximity
 
     prod_vec = zero(point)
     @test Cones.hess_prod!(prod_vec, point, cone) ≈ dual_point atol=tol rtol=tol
@@ -85,9 +85,9 @@ function test_oracles(
     @test Cones.hess_prod!(prod_mat, inv_hess, cone) ≈ I atol=tol rtol=tol
     @test Cones.inv_hess_prod!(prod_mat, hess, cone) ≈ I atol=tol rtol=tol
 
-    psi = dual_point + grad
-    proxsqr = dot(psi, Cones.inv_hess_prod!(prod_vec, psi, cone))
-    @test Cones.get_proxsqr(cone, one(T), false) ≈ proxsqr atol=tol rtol=tol
+    # psi = dual_point + grad
+    # proxsqr = dot(psi, Cones.inv_hess_prod!(prod_vec, psi, cone))
+    # @test Cones.get_proxsqr(cone, one(T), false) ≈ proxsqr atol=tol rtol=tol
 
     if hasproperty(cone, :use_hess_prod_slow)
         Cones.update_use_hess_prod_slow(cone)
@@ -230,8 +230,8 @@ function show_time_alloc(
         @time Cones.dder3(cone, point1)
     end
 
-    println("get_proxsqr")
-    @time Cones.get_proxsqr(cone, one(T), true)
+    # println("get_proxsqr")
+    # @time Cones.get_proxsqr(cone, one(T), true)
 
     return
 end

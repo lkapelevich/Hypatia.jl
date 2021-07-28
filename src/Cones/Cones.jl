@@ -311,15 +311,18 @@ function get_proxsqr(
     negtol::T = sqrt(eps(T)),
     ) where {T <: Real}
     g = grad(cone)
-    vec1 = cone.vec1
-    vec2 = cone.vec2
+    # vec1 = cone.vec1
+    # vec2 = cone.vec2
+    #
+    # @. vec1 = irtmu * cone.dual_point + g
+    # inv_hess_prod!(vec2, vec1, cone)
+    # prox_sqr = dot(vec2, vec1)
+    # (prox_sqr < -negtol * length(g)) && return T(Inf) # should be positive
+    dg = dual_grad(cone)
+    nu = get_nu(cone)
+    return nu / (dot(g, dg) / irtmu)
 
-    @. vec1 = irtmu * cone.dual_point + g
-    inv_hess_prod!(vec2, vec1, cone)
-    prox_sqr = dot(vec2, vec1)
-    (prox_sqr < -negtol * length(g)) && return T(Inf) # should be positive
-
-    return abs(prox_sqr)
+    # return abs(prox_sqr)
 end
 
 include("nonnegative.jl")

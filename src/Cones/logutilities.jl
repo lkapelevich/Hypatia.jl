@@ -21,7 +21,7 @@ function omegawright(z::Real)
         w = w * (1 + r / (1 + w) * (t - r / 2) / (t - r))
         r = (2 * w^2 - 8 * w - 1) / 72 / (1 + w)^6 * r^4
     end
-    @show r
-    @show z - w - log(w)
+    # @show r
+    # @show z - w - log(w)
     return w
 end

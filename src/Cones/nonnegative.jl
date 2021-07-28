@@ -11,11 +11,13 @@ mutable struct Nonnegative{T <: Real} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
     is_feas::Bool
@@ -26,6 +28,7 @@ mutable struct Nonnegative{T <: Real} <: Cone{T}
         @assert dim >= 1
         cone = new{T}()
         cone.dim = dim
+        cone.dual_grad = zeros(T, dim)
         return cone
     end
 end
@@ -33,7 +36,7 @@ end
 use_dual_barrier(::Nonnegative) = false
 
 reset_data(cone::Nonnegative) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = false)
+    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated = false)
 
 use_sqrt_hess_oracles(::Int, cone::Nonnegative) = true
 
@@ -55,6 +58,12 @@ function update_grad(cone::Nonnegative)
     @. cone.grad = -inv(cone.point)
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::Nonnegative)
+    @. cone.dual_grad = -inv(cone.dual_point)
+    cone.dual_grad_updated = true
+    return cone.dual_grad
 end
 
 function update_hess(cone::Nonnegative{T}) where T
@@ -139,7 +148,6 @@ function get_proxsqr(
     irtmu::T,
     use_max_prox::Bool,
     ) where {T <: Real}
-    aggfun = (use_max_prox ? maximum : sum)
-    return aggfun(abs2(si * zi * irtmu - 1) for (si, zi) in
-        zip(cone.point, cone.dual_point))
+    aggfun = minimum
+    return aggfun(si * zi * irtmu for (si, zi) in zip(cone.point, cone.dual_point))
 end
