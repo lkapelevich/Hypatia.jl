@@ -97,12 +97,32 @@ end
 """
 $(SIGNATURES)
 
+.
+"""
+function scal_hess(cone::Cone{T}, mu::T) where T
+    cone.scal_hess_updated && return cone.scal_hess
+    return update_scal_hess(cone, mu)
+end
+
+"""
+$(SIGNATURES)
+
 The inverse Hessian (symmetric positive definite) of the cone's barrier function
 at the currently-loaded primal point.
 """
 function inv_hess(cone::Cone)
     cone.inv_hess_updated && return cone.inv_hess
     return update_inv_hess(cone)
+end
+
+"""
+$(SIGNATURES)
+
+.
+"""
+function inv_scal_hess(cone::Cone{T}, mu::T) where T
+    cone.inv_scal_hess_updated && return cone.inv_scal_hess
+    return update_inv_scal_hess(cone, mu)
 end
 
 """
@@ -323,6 +343,46 @@ function get_proxsqr(
     return nu / (dot(g, dg) / irtmu)
 
     # return abs(prox_sqr)
+end
+
+function update_scal_hess(cone::Cone{T}, mu::T) where T
+    if !isdefined(cone, :scal_hess)
+        dim = dimension(cone)
+        cone.scal_hess = Symmetric(zeros(T, dim, dim), :U)
+    end
+
+    cone.scal_hess = update_hess(cone)
+    cone.scal_hess_updated = true
+    return cone.scal_hess
+end
+
+function update_inv_scal_hess(cone::Cone{T}, mu::T) where T
+    if !isdefined(cone, :inv_scal_hess)
+        dim = dimension(cone)
+        cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
+    end
+
+    cone.inv_scal_hess = update_inv_hess(cone)
+    cone.inv_scal_hess_updated = true
+    return cone.inv_scal_hess
+end
+
+function scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Cone{T},
+    mu::T
+    ) where T
+    return hess_prod!(prod, arr, cone)
+end
+
+function inv_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Cone{T},
+    mu::T
+    ) where T
+    return inv_hess_prod!(prod, arr, cone)
 end
 
 include("nonnegative.jl")

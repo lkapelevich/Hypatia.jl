@@ -20,10 +20,14 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
     grad_updated::Bool
     dual_grad_updated::Bool
     hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     inv_hess_updated::Bool
     hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
@@ -46,7 +50,8 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
 end
 
 reset_data(cone::HypoPerLog) = (cone.feas_updated = cone.grad_updated =
-    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated =
     cone.hess_fact_updated = false)
 
 function setup_extra_data!(cone::HypoPerLog{T}) where {T <: Real}
@@ -305,6 +310,33 @@ function dder3(cone::HypoPerLog{T}, dir::AbstractVector{T}) where {T <: Real}
     dder3[1] = -c1
     dder3[2] = c1 * σ + (viq2 - (d * c5 + c6 * c0 + vζi * c7)) / v - c4
     @. dder3[3:end] = (c8 + rwi * (c6 + vζi1 * rwi)) / w
+
+    return dder3
+end
+
+using ForwardDiff
+
+function dder3(cone::HypoPerLog{T}, pdir::AbstractVector{T}, ddir::AbstractVector{T}) where {T <: Real}
+    @assert cone.grad_updated
+    v = cone.point[2]
+    @views w = cone.point[3:end]
+    dder3 = cone.dder3
+    d = length(w)
+
+    function bar(uvw)
+        @views (u, v, w) = (uvw[1], uvw[2], uvw[3:end])
+        lw = sum(log, w)
+        return -log((lw - d * log(v)) * v - u) - lw - log(v)
+    end
+    d1 = inv_hess_prod!(zeros(T, d + 2), ddir, cone)
+    bardir(point, s, t) = bar(point + s * d1 + t * pdir)
+    dder3 = ForwardDiff.gradient(
+        s2 -> ForwardDiff.derivative(
+            s -> ForwardDiff.derivative(
+                t -> bardir(s2, s, t),
+                0),
+            0),
+        cone.point)
 
     return dder3
 end

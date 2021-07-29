@@ -190,7 +190,8 @@ end
 
 function update_lhs(syssolver::NaiveDenseSystemSolver, solver::Solver)
     for (cone_k, lhs_H_k) in zip(solver.model.cones, syssolver.lhs_H_k)
-        copyto!(lhs_H_k, Cones.hess(cone_k))
+        # copyto!(lhs_H_k, Cones.hess(cone_k))
+        copyto!(lhs_H_k, Cones.scal_hess(cone_k, solver.mu))
     end
     tau = solver.point.tau[]
     syssolver.lhs[end, syssolver.tau_row] = solver.point.kap[] / tau

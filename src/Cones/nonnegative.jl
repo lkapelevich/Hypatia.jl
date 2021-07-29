@@ -19,9 +19,13 @@ mutable struct Nonnegative{T <: Real} <: Cone{T}
     grad_updated::Bool
     dual_grad_updated::Bool
     hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     inv_hess_updated::Bool
     is_feas::Bool
     hess::Diagonal{T, Vector{T}}
+    scal_hess::Diagonal{T, Vector{T}}
+    inv_scal_hess::Diagonal{T, Vector{T}}
     inv_hess::Diagonal{T, Vector{T}}
 
     function Nonnegative{T}(dim::Int) where {T <: Real}
@@ -36,7 +40,8 @@ end
 use_dual_barrier(::Nonnegative) = false
 
 reset_data(cone::Nonnegative) = (cone.feas_updated = cone.grad_updated =
-    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated = false)
+    cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated = false)
 
 use_sqrt_hess_oracles(::Int, cone::Nonnegative) = true
 
@@ -77,6 +82,26 @@ function update_hess(cone::Nonnegative{T}) where T
     return cone.hess
 end
 
+function update_scal_hess(cone::Nonnegative{T}, mu::T) where T
+    if !isdefined(cone, :scal_hess)
+        cone.scal_hess = Diagonal(zeros(T, cone.dim))
+    end
+
+    @. cone.scal_hess.diag = cone.dual_point / (cone.point * sqrt(mu))
+    cone.scal_hess_updated = true
+    return cone.scal_hess
+end
+
+function update_inv_scal_hess(cone::Nonnegative{T}, mu::T) where T
+    if !isdefined(cone, :inv_scal_hess)
+        cone.inv_scal_hess = Diagonal(zeros(T, cone.dim))
+    end
+
+    @. cone.inv_scal_hess.diag = cone.point * sqrt(mu) / cone.dual_point
+    cone.inv_scal_hess_updated = true
+    return cone.inv_scal_hess
+end
+
 function update_inv_hess(cone::Nonnegative{T}) where T
     @assert cone.is_feas
     if !isdefined(cone, :inv_hess)
@@ -108,6 +133,28 @@ function inv_hess_prod!(
     return prod
 end
 
+function scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Nonnegative{T},
+    mu::T,
+    ) where T
+    @assert cone.is_feas
+    @. prod = arr * cone.dual_point / (cone.point * sqrt(mu))
+    return prod
+end
+
+function inv_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Nonnegative{T},
+    mu::T,
+    ) where T
+    @assert cone.is_feas
+    @. prod = arr * cone.point * sqrt(mu) / cone.dual_point
+    return prod
+end
+
 function sqrt_hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,
@@ -130,6 +177,11 @@ end
 
 function dder3(cone::Nonnegative, dir::AbstractVector)
     @. cone.dder3 = abs2(dir / cone.point) / cone.point
+    return cone.dder3
+end
+
+function dder3(cone::Nonnegative, pdir::AbstractVector, ddir::AbstractVector)
+    @. cone.dder3 = -pdir * ddir / cone.point
     return cone.dder3
 end
 
