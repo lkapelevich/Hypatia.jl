@@ -376,7 +376,8 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     end
     v1 = z + mu * tz + dz / (mu * tmu - 1)
     v2 = Hts - tmu * tz
-    H .= old_hess * mu + 1 / (2 * mu * nu) * (dz * v1' + v1 * dz') - mu /
+    M1 = dz * v1'
+    H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
         (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
     # H .= old_hess * mu + z * z' / dot(s, z) + dz * dz' / dot(ds, dz) - mu / nu * tz * tz' - mu *
     #     v2 * v2' / (dot(ts, Hts) - nu * tmu^2)
