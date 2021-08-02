@@ -26,7 +26,7 @@ default_options = (
     default_tol_relax = 10,
     iter_limit = 10000,
     time_limit = 10000,
-    syssolver = Solvers.NaiveDenseSystemSolver{Float64}()
+    syssolver = Solvers.NaiveDenseSystemSolver{Float64}(),
     )
 
 # stepper option sets to run
@@ -38,7 +38,8 @@ stepper_options = [
     # "prox" => porc(use_adjustment = false, use_curve_search = false),
     # "toa" => porc(use_adjustment = true, use_curve_search = false),
     # "curve" => porc(use_adjustment = true, use_curve_search = true),
-    "comb" => comb(shift_sched = 0),
+    # "comb" => comb(shift_sched = 0),
+    "symm" => Solvers.SymmStepper{Float64}(),
     ]
 
 # instance sets and real types to run and corresponding time limits (seconds)

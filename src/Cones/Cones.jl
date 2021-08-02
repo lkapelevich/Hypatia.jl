@@ -350,39 +350,56 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
         dim = dimension(cone)
         cone.scal_hess = Symmetric(zeros(T, dim, dim), :U)
     end
+    hess(cone)
 
-    cone.scal_hess = update_hess(cone)
+    H = cone.scal_hess.data
+    old_hess = copy(cone.hess) / mu
+    rtmu = sqrt(mu)
+    s = cone.point * rtmu
+    z = cone.dual_point
+    ts = -dual_grad(cone)
+    tz = -grad(cone) / rtmu
+
+    nu = get_nu(cone)
+    mu = dot(s, z) / nu
+    tmu = dot(ts, tz) / nu
+    # nu = dot(s, z) / mu
+    # tmu = dot(ts, tz) / nu
+
+    ds = s - mu * ts
+    dz = z - mu * tz
+    Hts = old_hess * ts
+    if (norm(ds) <= sqrt(eps(T))) || (norm(dz) <= sqrt(eps(T)))
+        cone.scal_hess_updated = true
+        H .= cone.hess.data
+        return cone.scal_hess
+    end
+    v1 = z + mu * tz + dz / (mu * tmu - 1)
+    v2 = Hts - tmu * tz
+    H .= old_hess * mu + 1 / (2 * mu * nu) * (dz * v1' + v1 * dz') - mu /
+        (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
+    # H .= old_hess * mu + z * z' / dot(s, z) + dz * dz' / dot(ds, dz) - mu / nu * tz * tz' - mu *
+    #     v2 * v2' / (dot(ts, Hts) - nu * tmu^2)
+
+    # @assert cone.scal_hess * s ≈ z
+    # @assert cone.scal_hess * ts ≈ tz
+
+    # @assert -Cones.dder3(cone, cone.point, cone.hess * cone.point) ≈ -cone.grad
+
+
+    # cone.scal_hess = update_hess(cone)
     cone.scal_hess_updated = true
     return cone.scal_hess
-end
-
-function update_inv_scal_hess(cone::Cone{T}, mu::T) where T
-    if !isdefined(cone, :inv_scal_hess)
-        dim = dimension(cone)
-        cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
-    end
-
-    cone.inv_scal_hess = update_inv_hess(cone)
-    cone.inv_scal_hess_updated = true
-    return cone.inv_scal_hess
 end
 
 function scal_hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,
     cone::Cone{T},
-    mu::T
+    mu::T,
     ) where T
-    return hess_prod!(prod, arr, cone)
-end
-
-function inv_scal_hess_prod!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::Cone{T},
-    mu::T
-    ) where T
-    return inv_hess_prod!(prod, arr, cone)
+    prod .= scal_hess(cone, mu) * arr
+    return prod
 end
 
 include("nonnegative.jl")

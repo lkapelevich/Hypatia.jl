@@ -203,3 +203,5 @@ function get_proxsqr(
     aggfun = minimum
     return aggfun(si * zi * irtmu for (si, zi) in zip(cone.point, cone.dual_point))
 end
+
+# TODO distance to boundary

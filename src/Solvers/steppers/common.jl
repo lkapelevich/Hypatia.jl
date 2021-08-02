@@ -49,15 +49,16 @@ function update_rhs_predadj(
         # if dder3_viol < T(1e-4) # TODO tune
         #     @. rhs.s_views[k] = H_prim_dir_k + dder3_k
         # end
-        prim_dir_k = dir.primal_views[k] * sqrt(solver.mu)
-        dual_dir_k = dir.dual_views[k] * sqrt(solver.mu)
-        dder3_k = Cones.dder3(cone_k, prim_dir_k, dual_dir_k) #* solver.mu
+        prim_dir_k = dir.primal_views[k] #* sqrt(solver.mu)
+        dual_dir_k = dir.dual_views[k] #* sqrt(solver.mu)
+        # @show typeof(cone_k)
+        # @show -Cones.dder3(cone_k, cone_k.point, Cones.hess(cone_k) * cone_k.point) ./ Cones.grad(cone_k)
+        # @assert -Cones.dder3(cone_k, cone_k.point, Cones.hess(cone_k) * cone_k.point) ≈ -Cones.grad(cone_k)
+        dder3_k = Cones.dder3(cone_k, prim_dir_k, dual_dir_k) / sqrt(solver.mu)
         @. rhs.s_views[k] = dder3_k
     end
 
-    taubar = solver.point.tau[]
-    tau_dir_tau = dir.tau[] / taubar
-    rhs.kap[] = dir.tau[] * dir.kap[] / solver.point.tau[]
+    rhs.kap[] = -dir.tau[] * dir.kap[] / solver.point.tau[]
 
     return rhs
 end
@@ -123,3 +124,4 @@ end
 
 include("predorcent.jl")
 include("combined.jl")
+include("symm.jl")

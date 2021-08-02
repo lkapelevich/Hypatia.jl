@@ -316,12 +316,14 @@ end
 
 using ForwardDiff
 
-function dder3(cone::HypoPerLog{T}, pdir::AbstractVector{T}, ddir::AbstractVector{T}) where {T <: Real}
+function dder3(
+    cone::HypoPerLog{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
     @assert cone.grad_updated
-    v = cone.point[2]
-    @views w = cone.point[3:end]
     dder3 = cone.dder3
-    d = length(w)
+    d = cone.dim - 2
 
     function bar(uvw)
         @views (u, v, w) = (uvw[1], uvw[2], uvw[3:end])
@@ -330,13 +332,13 @@ function dder3(cone::HypoPerLog{T}, pdir::AbstractVector{T}, ddir::AbstractVecto
     end
     d1 = inv_hess_prod!(zeros(T, d + 2), ddir, cone)
     bardir(point, s, t) = bar(point + s * d1 + t * pdir)
-    dder3 = ForwardDiff.gradient(
+    dder3 .= ForwardDiff.gradient(
         s2 -> ForwardDiff.derivative(
             s -> ForwardDiff.derivative(
                 t -> bardir(s2, s, t),
                 0),
             0),
-        cone.point)
+        cone.point) / 2
 
     return dder3
 end
