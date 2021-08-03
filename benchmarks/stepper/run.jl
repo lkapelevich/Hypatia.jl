@@ -28,7 +28,8 @@ default_options = (
     time_limit = 10000,
     # syssolver = Solvers.NaiveDenseSystemSolver{Float64}(),
     # syssolver = Solvers.NaiveElimDenseSystemSolver{Float64}(),
-    syssolver = Solvers.SymIndefDenseSystemSolver{Float64}(),
+    # syssolver = Solvers.SymIndefDenseSystemSolver{Float64}(),
+    syssolver = Solvers.QRCholDenseSystemSolver{Float64}(),
     )
 
 # stepper option sets to run

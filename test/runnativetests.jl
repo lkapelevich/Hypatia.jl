@@ -109,7 +109,7 @@ perf = DataFrames.DataFrame(
         # (Solvers.NaiveElimSparseSystemSolver, [Float64,]),
         (Solvers.SymIndefDenseSystemSolver, all_reals),
         # (Solvers.SymIndefSparseSystemSolver, [Float64,]),
-        # (Solvers.QRCholDenseSystemSolver, all_reals),
+        (Solvers.QRCholDenseSystemSolver, all_reals),
         ]
     for inst_name in inst_cones_many, (syssolver, real_types) in syssolvers,
         T in real_types

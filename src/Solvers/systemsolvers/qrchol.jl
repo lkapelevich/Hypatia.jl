@@ -19,6 +19,7 @@ function setup_rhs3(
     rhs::Point{T},
     sol::Point{T},
     rhs_sub::Point{T},
+    mu::T,
     ) where {T <: Real}
     @inbounds for (k, cone_k) in enumerate(model.cones)
         rhs_z_k = rhs.z_views[k]
@@ -27,9 +28,9 @@ function setup_rhs3(
         if Cones.use_dual_barrier(cone_k)
             z_temp_k = sol.z_views[k]
             @. z_temp_k = -rhs_z_k - rhs_s_k
-            Cones.inv_scal_hess_prod!(rhs_sub_z_k, z_temp_k, cone_k)
+            Cones.inv_scal_hess_prod!(rhs_sub_z_k, z_temp_k, cone_k, mu)
         else
-            Cones.scal_hess_prod!(rhs_sub_z_k, rhs_z_k, cone_k)
+            Cones.scal_hess_prod!(rhs_sub_z_k, rhs_z_k, cone_k, mu)
             axpby!(-1, rhs_s_k, -1, rhs_sub_z_k)
         end
     end
@@ -58,7 +59,7 @@ function solve_subsystem3(
 
         if !isempty(syssolver.Q2div)
             mul!(syssolver.GQ1x, syssolver.GQ1, y)
-            block_hess_prod!.(syssolver.HGQ1x_k, syssolver.GQ1x_k, model.cones)
+            block_hess_prod!.(syssolver.HGQ1x_k, syssolver.GQ1x_k, model.cones, solver.mu)
             mul!(syssolver.Q2div, syssolver.GQ2', syssolver.HGQ1x, -1, true)
         end
     end
@@ -71,7 +72,7 @@ function solve_subsystem3(
     lmul!(solver.Ap_Q, x)
 
     mul!(syssolver.Gx, model.G, x)
-    block_hess_prod!.(syssolver.HGx_k, syssolver.Gx_k, model.cones)
+    block_hess_prod!.(syssolver.HGx_k, syssolver.Gx_k, model.cones, solver.mu)
 
     axpby!(true, syssolver.HGx, -1, z)
 
@@ -88,11 +89,12 @@ function block_hess_prod!(
     prod_k::AbstractVecOrMat{T},
     arr_k::AbstractVecOrMat{T},
     cone_k::Cones.Cone{T},
+    mu::T,
     ) where {T <: Real}
     if Cones.use_dual_barrier(cone_k)
-        Cones.inv_scal_hess_prod!(prod_k, arr_k, cone_k)
+        Cones.inv_scal_hess_prod!(prod_k, arr_k, cone_k, mu)
     else
-        Cones.scal_hess_prod!(prod_k, arr_k, cone_k)
+        Cones.scal_hess_prod!(prod_k, arr_k, cone_k, mu)
     end
     return
 end
@@ -191,7 +193,7 @@ function update_lhs(
     rhs_const = syssolver.rhs_const
     @inbounds for (k, cone_k) in enumerate(model.cones)
         @views h_k = model.h[model.cone_idxs[k]]
-        block_hess_prod!(rhs_const.z_views[k], h_k, cone_k)
+        block_hess_prod!(rhs_const.z_views[k], h_k, cone_k, solver.mu)
     end
     solve_subsystem3(syssolver, solver, syssolver.sol_const, rhs_const)
 
@@ -225,9 +227,9 @@ function update_lhs_fact(
             q_k = size(arr_k, 1)
             @views prod_k = HGQ2[idx:(idx + q_k - 1), :]
             if Cones.use_dual_barrier(cone_k)
-                Cones.inv_sqrt_hess_prod!(prod_k, arr_k, cone_k)
+                Cones.inv_sqrt_scal_hess_prod!(prod_k, arr_k, cone_k, solver.mu)
             else
-                Cones.sqrt_hess_prod!(prod_k, arr_k, cone_k)
+                Cones.sqrt_scal_hess_prod!(prod_k, arr_k, cone_k, solver.mu)
             end
             idx += q_k
         end
@@ -241,7 +243,7 @@ function update_lhs_fact(
         use_sqrt_hess_cones[k] && continue
         arr_k = GQ2_k[k]
         prod_k = HGQ2_k[k]
-        block_hess_prod!(prod_k, arr_k, cones[k])
+        block_hess_prod!(prod_k, arr_k, cones[k], solver.mu)
         mul!(lhs, arr_k', prod_k, true, true)
     end
 

@@ -238,25 +238,47 @@ function sqrt_hess_prod!(
     return prod
 end
 
-# function sqrt_scal_hess_prod!(
-#     prod::AbstractVecOrMat,
-#     arr::AbstractVecOrMat,
-#     cone::Cone,
-#     mu::T,
-#     )
-#     @assert cone.hess_fact_updated
-#     nu = get_nu(cone)
-#     s = cone.point * sqrt(mu)
-#     z = cone.dual_point
-#     c1 = dot(s, z)
-#     cone_mu = c1 / nu
-#     fact = cone.hess_fact
-#     fact.factors .*= sqrt(cone_mu / mu)
-#
-#
-#     mul!(prod, cone.hess_fact.U, arr)
-#     return prod
-# end
+function sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Cone{T},
+    mu::T,
+    ) where T
+    @assert cone.hess_updated
+    @assert cone.hess_fact_updated
+    s = cone.point * sqrt(mu)
+    z = cone.dual_point
+    ts = -dual_grad(cone)
+    tz = -grad(cone) / sqrt(mu)
+    old_hess = copy(cone.hess) / mu
+
+    nu = get_nu(cone)
+    c1 = dot(s, z)
+    cone_mu = c1 / nu
+    tmu = dot(ts, tz) / nu
+    ds = s - cone_mu * ts
+    dz = z - cone_mu * tz
+    Hts = old_hess * ts
+
+    fact = cone.hess_fact
+    tol = sqrt(eps(T))
+    if (norm(ds) < tol) || (norm(dz) < tol) || (abs(mu * tmu - 1) < tol) ||
+        (dot(ts, Hts) - nu * tmu^2 < tol)
+        mul!(prod, fact.U, arr)
+    else
+        fact.factors .*= sqrt(cone_mu / mu)
+        lowrankupdate!(fact, z / sqrt(c1))
+        c2 = dot(ds, dz)
+        lowrankupdate!(fact, dz / sqrt(c2))
+        lowrankdowndate!(fact, tz * sqrt(cone_mu / nu))
+        c5 = cone_mu / (dot(ts, Hts) - nu * tmu^2)
+        v1 = Hts - tmu * tz
+        lowrankdowndate!(fact, v1 * sqrt(c5))
+    end
+    mul!(prod, fact.U, arr)
+
+    return prod
+end
 
 # only use if use_sqrt_hess_oracles is true
 function inv_sqrt_hess_prod!(
