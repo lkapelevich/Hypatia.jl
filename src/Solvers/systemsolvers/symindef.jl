@@ -34,6 +34,7 @@ function setup_rhs3(
     rhs::Point{T},
     sol::Point{T},
     rhs_sub::Point{T},
+    mu::T,
     ) where {T <: Real}
     @inbounds for (k, cone_k) in enumerate(model.cones)
         rhs_z_k = rhs.z_views[k]
@@ -44,7 +45,7 @@ function setup_rhs3(
             @. rhs_sub_z_k = -rhs_z_k - rhs_s_k
         else
             # G_k*x - (mu*H_k)\z_k = [-zrhs_k - (mu*H_k)\srhs_k, h_k]
-            Cones.inv_hess_prod!(rhs_sub_z_k, rhs_s_k, cone_k)
+            Cones.inv_scal_hess_prod!(rhs_sub_z_k, rhs_s_k, cone_k, mu)
             axpby!(-1, rhs_z_k, -1, rhs_sub_z_k)
         end
     end
@@ -243,8 +244,8 @@ function update_lhs(syssolver::SymIndefDenseSystemSolver, solver::Solver)
 
     for (cone_k, idxs_k) in zip(model.cones, model.cone_idxs)
         z_rows_k = z_start .+ idxs_k
-        H_k = (Cones.use_dual_barrier(cone_k) ? Cones.hess :
-            Cones.inv_hess)(cone_k)
+        H_k = (Cones.use_dual_barrier(cone_k) ? Cones.scal_hess :
+            Cones.inv_scal_hess)(cone_k, solver.mu)
         @. lhs_sub[z_rows_k, z_rows_k] = -H_k
     end
 

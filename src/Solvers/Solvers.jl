@@ -496,12 +496,16 @@ function calc_convergence_params(solver::Solver{T}) where {T <: Real}
     solver.gap = dot(point.z, point.s)
 
     compl = solver.gap + point.tau[] * point.kap[]
-    @show compl / solver.compl_prev
-    solver.compl_prev = compl
+    # @show compl / solver.compl_prev
     # @show solver.x_residual ./ solver.x_residual_prev
     α = solver.stepper.prev_alpha
     γ = solver.stepper.gamma
-    @show 1 - α * (1 - γ)
+    # @show 1 - α * (1 - γ)
+    @show 1 - α * (1 - γ) - compl / solver.compl_prev
+    # if solver.num_iters > 1
+    #     @assert isapprox(1 - α * (1 - γ), compl / solver.compl_prev, atol = cbrt(eps(T)), rtol = cbrt(eps(T)))
+    # end
+    solver.compl_prev = compl
 
     return improv
 end

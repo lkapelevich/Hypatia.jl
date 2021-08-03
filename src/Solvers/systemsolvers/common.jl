@@ -146,7 +146,7 @@ function solve_system(
 
     # kap = -kapbar/taubar*tau + kaprhs
     taubar = solver.point.tau[]
-    sol.kap[] = -solver.mu / taubar / taubar * tau + rhs.kap[]
+    sol.kap[] = -solver.point.kap[] / taubar * tau + rhs.kap[]
 
     return sol
 end
@@ -164,7 +164,7 @@ function solve_subsystem4(
 
     @. rhs_sub.x = rhs.x
     @. rhs_sub.y = -rhs.y
-    setup_rhs3(syssolver, model, rhs, sol, rhs_sub)
+    setup_rhs3(syssolver, model, rhs, sol, rhs_sub, solver.mu)
 
     solve_subsystem3(syssolver, solver, sol_sub, rhs_sub)
 

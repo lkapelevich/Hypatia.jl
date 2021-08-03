@@ -16,7 +16,7 @@ default_options = (
     # verbose = false,
     default_tol_relax = 10,
     stepper = Solvers.SymmStepper{Float64}(),
-    syssolver = Solvers.NaiveDenseSystemSolver{Float64}(),
+    # syssolver = Solvers.NaiveDenseSystemSolver{Float64}(),
     )
 
 all_reals = [
@@ -67,17 +67,17 @@ perf = DataFrames.DataFrame(
 
 @testset "native tests" begin
 
-@testset "default options tests" begin
-    println("starting default options tests")
-    inst_defaults = vcat(
-        # inst_preproc,
-        # inst_infeas,
-        inst_cones_many,
-        )
-    for inst_name in inst_defaults
-        test_instance_solver(inst_name, Float64, default_options)
-    end
-end
+# @testset "default options tests" begin
+#     println("starting default options tests")
+#     inst_defaults = vcat(
+#         # inst_preproc,
+#         # inst_infeas,
+#         inst_cones_many,
+#         )
+#     for inst_name in inst_defaults
+#         test_instance_solver(inst_name, Float64, default_options)
+#     end
+# end
 
 # @testset "no preprocess tests" begin
 #     println("\nstarting no preprocess tests")
@@ -100,25 +100,25 @@ end
 #     end
 # end
 #
-# @testset "system solvers tests" begin
-#     println("\nstarting system solvers tests")
-#     syssolvers = [
-#         (Solvers.NaiveDenseSystemSolver, diff_reals),
-#         (Solvers.NaiveSparseSystemSolver, [Float64,]),
-#         (Solvers.NaiveElimDenseSystemSolver, diff_reals),
-#         (Solvers.NaiveElimSparseSystemSolver, [Float64,]),
-#         (Solvers.SymIndefDenseSystemSolver, all_reals),
-#         (Solvers.SymIndefSparseSystemSolver, [Float64,]),
-#         (Solvers.QRCholDenseSystemSolver, all_reals),
-#         ]
-#     for inst_name in inst_minimal, (syssolver, real_types) in syssolvers,
-#         T in real_types
-#         options = (; default_options..., syssolver = syssolver{T}(),
-#             reduce = false)
-#         test_instance_solver(inst_name, T, options, string_nameof(syssolver))
-#     end
-# end
-#
+@testset "system solvers tests" begin
+    println("\nstarting system solvers tests")
+    syssolvers = [
+        (Solvers.NaiveDenseSystemSolver, diff_reals),
+        # (Solvers.NaiveSparseSystemSolver, [Float64,]),
+        (Solvers.NaiveElimDenseSystemSolver, diff_reals),
+        # (Solvers.NaiveElimSparseSystemSolver, [Float64,]),
+        (Solvers.SymIndefDenseSystemSolver, all_reals),
+        # (Solvers.SymIndefSparseSystemSolver, [Float64,]),
+        # (Solvers.QRCholDenseSystemSolver, all_reals),
+        ]
+    for inst_name in inst_cones_many, (syssolver, real_types) in syssolvers,
+        T in real_types
+        options = (; default_options..., syssolver = syssolver{T}(),
+            reduce = false)
+        test_instance_solver(inst_name, T, options, string_nameof(syssolver))
+    end
+end
+
 # @testset "PredOrCentStepper tests" begin
 #     verbose = true
 #     println("\nstarting PredOrCentStepper tests (with printing)")

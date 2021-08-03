@@ -107,6 +107,9 @@ function test_oracles(
     # test third order deriv oracle
     if Cones.use_dder3(cone)
         @test -Cones.dder3(cone, point) ≈ grad atol=tol rtol=tol
+        if (cone isa Cones.Nonnegative) || (cone isa Cones.HypoPerLog)
+            @test -Cones.dder3(cone, point, hess * point) ≈ -grad
+        end
 
         dir = perturb_scale!(zeros(T, dim), noise, one(T))
         dder3 = Cones.dder3(cone, dir)

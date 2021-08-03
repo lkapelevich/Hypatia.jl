@@ -27,9 +27,9 @@ function setup_rhs3(
         if Cones.use_dual_barrier(cone_k)
             z_temp_k = sol.z_views[k]
             @. z_temp_k = -rhs_z_k - rhs_s_k
-            Cones.inv_hess_prod!(rhs_sub_z_k, z_temp_k, cone_k)
+            Cones.inv_scal_hess_prod!(rhs_sub_z_k, z_temp_k, cone_k)
         else
-            Cones.hess_prod!(rhs_sub_z_k, rhs_z_k, cone_k)
+            Cones.scal_hess_prod!(rhs_sub_z_k, rhs_z_k, cone_k)
             axpby!(-1, rhs_s_k, -1, rhs_sub_z_k)
         end
     end
@@ -90,9 +90,9 @@ function block_hess_prod!(
     cone_k::Cones.Cone{T},
     ) where {T <: Real}
     if Cones.use_dual_barrier(cone_k)
-        Cones.inv_hess_prod!(prod_k, arr_k, cone_k)
+        Cones.inv_scal_hess_prod!(prod_k, arr_k, cone_k)
     else
-        Cones.hess_prod!(prod_k, arr_k, cone_k)
+        Cones.scal_hess_prod!(prod_k, arr_k, cone_k)
     end
     return
 end

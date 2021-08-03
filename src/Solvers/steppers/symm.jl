@@ -48,6 +48,8 @@ function load(stepper::SymmStepper{T}, solver::Solver{T}) where {T <: Real}
     stepper.searcher = StepSearcher{T}(model; stepper.searcher_options...)
     stepper.pred_only = true
 
+    stepper.gamma = 0
+
     return stepper
 end
 
@@ -117,34 +119,12 @@ function step(stepper::SymmStepper{T}, solver::Solver{T}) where {T <: Real}
     # k_comb = (1 - gamma) * dir_pred.kap[] + gamma * dir_cent.kap[] + dir_predadj.kap[]
     # @show dot(s_comb, z_comb) + t_comb * k_comb
 
-    # if iszero(alpha)
-    #     # recover
-    #     solver.verbose && println("trying Symm without adjustment")
-    #     stepper.unadj_only = true
-    #     solver.time_search += @elapsed alpha = search_alpha(point, model, stepper)
-    #
-    #     if iszero(alpha)
-    #         solver.verbose && println("trying centering with adjustment")
-    #         stepper.cent_only = true
-    #         stepper.unadj_only = false
-    #         solver.time_search += @elapsed alpha =
-    #             search_alpha(point, model, stepper)
-    #
-    #         if iszero(alpha)
-    #             solver.verbose && println("trying centering without adjustment")
-    #             stepper.unadj_only = true
-    #             solver.time_search += @elapsed alpha =
-    #                 search_alpha(point, model, stepper)
-    #
-    #             if iszero(alpha)
-    #                 @warn("cannot step in centering direction")
-    #                 solver.status = NumericalFailure
-    #                 stepper.prev_alpha = alpha
-    #                 return false
-    #             end
-    #         end
-    #     end
-    # end
+    if iszero(alpha)
+        @warn("cannot step in combined direction")
+        solver.status = NumericalFailure
+        stepper.prev_alpha = alpha
+        return false
+    end
 
     # step
     update_stepper_points(alpha, point, stepper, false)

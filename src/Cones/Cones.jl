@@ -238,6 +238,26 @@ function sqrt_hess_prod!(
     return prod
 end
 
+# function sqrt_scal_hess_prod!(
+#     prod::AbstractVecOrMat,
+#     arr::AbstractVecOrMat,
+#     cone::Cone,
+#     mu::T,
+#     )
+#     @assert cone.hess_fact_updated
+#     nu = get_nu(cone)
+#     s = cone.point * sqrt(mu)
+#     z = cone.dual_point
+#     c1 = dot(s, z)
+#     cone_mu = c1 / nu
+#     fact = cone.hess_fact
+#     fact.factors .*= sqrt(cone_mu / mu)
+#
+#
+#     mul!(prod, cone.hess_fact.U, arr)
+#     return prod
+# end
+
 # only use if use_sqrt_hess_oracles is true
 function inv_sqrt_hess_prod!(
     prod::AbstractVecOrMat,
@@ -345,6 +365,75 @@ function get_proxsqr(
     # return abs(prox_sqr)
 end
 
+# TODO
+# leaving as dead code for now, might need to come back to this for dealing
+# with dual barriers
+# inv of updated Hessian doesn't equal update of inv Hessian
+# but for non-dual-barrier stuff inv of updated Hessian is needed
+# function scal_hess_aux(
+#     cone::Cone{T},
+#     mu::T,
+#     inverse::Bool,
+#     ) where T
+#
+#     rtmu = sqrt(mu)
+#     if inverse
+#         old_hess_mu = copy(cone.inv_hess)
+#         old_hess = old_hess_mu * mu
+#         H = cone.inv_scal_hess.data
+#         z = cone.point * rtmu
+#         s = cone.dual_point
+#         tz = -dual_grad(cone)
+#         ts = -grad(cone) / rtmu
+#     else
+#         old_hess_mu = copy(cone.hess)
+#         old_hess = old_hess_mu / mu
+#         H = cone.scal_hess.data
+#         s = cone.point * rtmu
+#         z = cone.dual_point
+#         ts = -dual_grad(cone)
+#         tz = -grad(cone) / rtmu
+#     end
+#
+#     nu = get_nu(cone)
+#     mu = dot(s, z) / nu
+#     tmu = dot(ts, tz) / nu
+#
+#     ds = s - mu * ts
+#     dz = z - mu * tz
+#     Hts = old_hess * ts
+#     tol = sqrt(eps(T))
+#     if (norm(ds) < tol) || (norm(dz) < tol) || (abs(mu * tmu - 1) < tol) ||
+#         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
+#         # @show "~~ skipping updates ~~"
+#         H .= old_hess_mu
+#     else
+#         v1 = z + mu * tz + dz / (mu * tmu - 1)
+#         v2 = Hts - tmu * tz
+#         M1 = dz * v1'
+#         if inverse
+#             # H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
+#             #     (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
+#             rho = ts - dot(s, old_hess * mu, ts) / dot(s, old_hess * mu, s) * s
+#             start_H = old_hess / mu
+#             H .= start_H + z * z' / dot(s, z) + dz * dz' / dot(ds, dz) -
+#                 (start_H * s) * (start_H * s)' / dot(s, start_H, s) -
+#                 (start_H * rho) * (start_H * rho)' / dot(rho, start_H * rho)
+#             # @show (cone.inv_scal_hess * s) ./ z
+#             # @assert cone.inv_scal_hess * s ≈ z
+#         else
+#             H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
+#                 (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
+#         end
+#         # H .= old_hess * mu + z * z' / dot(s, z) + dz * dz' / dot(ds, dz) - mu / nu * tz * tz' - mu *
+#         #     v2 * v2' / (dot(ts, Hts) - nu * tmu^2)
+#     end
+#     # @assert cone.scal_hess * s ≈ z
+#     # @assert cone.scal_hess * ts ≈ tz
+#
+#     return H
+# end
+
 function update_scal_hess(cone::Cone{T}, mu::T) where T
     if !isdefined(cone, :scal_hess)
         dim = dimension(cone)
@@ -352,9 +441,10 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     end
     hess(cone)
 
-    H = cone.scal_hess.data
-    old_hess = copy(cone.hess) / mu
     rtmu = sqrt(mu)
+    old_hess_mu = copy(cone.hess)
+    old_hess = old_hess_mu / mu
+    H = cone.scal_hess.data
     s = cone.point * rtmu
     z = cone.dual_point
     ts = -dual_grad(cone)
@@ -363,34 +453,39 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     nu = get_nu(cone)
     mu = dot(s, z) / nu
     tmu = dot(ts, tz) / nu
-    # nu = dot(s, z) / mu
-    # tmu = dot(ts, tz) / nu
 
     ds = s - mu * ts
     dz = z - mu * tz
     Hts = old_hess * ts
-    if (norm(ds) <= sqrt(eps(T))) || (norm(dz) <= sqrt(eps(T)))
-        cone.scal_hess_updated = true
-        H .= cone.hess.data
-        return cone.scal_hess
+    tol = sqrt(eps(T))
+    if (norm(ds) < tol) || (norm(dz) < tol) || (abs(mu * tmu - 1) < tol) ||
+        (abs(dot(ts, Hts) - nu * tmu^2) < tol)
+        # @show "~~ skipping updates ~~"
+        H .= old_hess_mu
+    else
+        v1 = z + mu * tz + dz / (mu * tmu - 1)
+        v2 = Hts - tmu * tz
+        M1 = dz * v1'
+        H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
+            (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
+        # H .= old_hess * mu + z * z' / dot(s, z) + dz * dz' / dot(ds, dz) - mu / nu * tz * tz' - mu *
+        #     v2 * v2' / (dot(ts, Hts) - nu * tmu^2)
     end
-    v1 = z + mu * tz + dz / (mu * tmu - 1)
-    v2 = Hts - tmu * tz
-    M1 = dz * v1'
-    H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
-        (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
-    # H .= old_hess * mu + z * z' / dot(s, z) + dz * dz' / dot(ds, dz) - mu / nu * tz * tz' - mu *
-    #     v2 * v2' / (dot(ts, Hts) - nu * tmu^2)
-
     # @assert cone.scal_hess * s ≈ z
     # @assert cone.scal_hess * ts ≈ tz
 
-    # @assert -Cones.dder3(cone, cone.point, cone.hess * cone.point) ≈ -cone.grad
-
-
-    # cone.scal_hess = update_hess(cone)
     cone.scal_hess_updated = true
     return cone.scal_hess
+end
+
+function update_inv_scal_hess(cone::Cone{T}, mu::T) where T
+    if !isdefined(cone, :inv_scal_hess)
+        dim = dimension(cone)
+        cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
+    end
+    cone.inv_scal_hess = inv(scal_hess(cone, mu))
+    cone.inv_scal_hess_updated = true
+    return cone.inv_scal_hess
 end
 
 function scal_hess_prod!(
@@ -400,6 +495,16 @@ function scal_hess_prod!(
     mu::T,
     ) where T
     prod .= scal_hess(cone, mu) * arr
+    return prod
+end
+
+function inv_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Cone{T},
+    mu::T,
+    ) where T
+    prod .= scal_hess(cone, mu) \ arr
     return prod
 end
 

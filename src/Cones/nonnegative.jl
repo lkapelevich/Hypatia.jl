@@ -165,6 +165,17 @@ function sqrt_hess_prod!(
     return prod
 end
 
+function sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Nonnegative{T},
+    mu::T,
+    ) where T
+    @assert cone.is_feas
+    @. prod = arr * sqrt(cone.dual_point) / sqrt(cone.point * sqrt(mu))
+    return prod
+end
+
 function inv_sqrt_hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,
@@ -172,6 +183,17 @@ function inv_sqrt_hess_prod!(
     )
     @assert cone.is_feas
     @. prod = arr * cone.point
+    return prod
+end
+
+function inv_sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Nonnegative{T},
+    mu::T,
+    ) where T
+    @assert cone.is_feas
+    @. prod = arr * sqrt(cone.point) * sqrt(sqrt(mu)) / sqrt(cone.dual_point)
     return prod
 end
 
