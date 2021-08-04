@@ -480,6 +480,7 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     dz = z - mu * tz
     Hts = old_hess * ts
     tol = sqrt(eps(T))
+    # tol = 1000eps(T)
     if (norm(ds) < tol) || (norm(dz) < tol) || (abs(mu * tmu - 1) < tol) ||
         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
         # @show "~~ skipping updates ~~"
@@ -495,6 +496,9 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     end
     # @assert cone.scal_hess * s ≈ z
     # @assert cone.scal_hess * ts ≈ tz
+    # check = norm(BigFloat.(cone.scal_hess) * s - z)
+    # @show check
+    # @show norm(bf_hess - old_hess_mu)
 
     cone.scal_hess_updated = true
     return cone.scal_hess
@@ -526,7 +530,7 @@ function inv_scal_hess_prod!(
     cone::Cone{T},
     mu::T,
     ) where T
-    prod .= scal_hess(cone, mu) \ arr
+    prod .= cholesky(scal_hess(cone, mu)) \ arr
     return prod
 end
 

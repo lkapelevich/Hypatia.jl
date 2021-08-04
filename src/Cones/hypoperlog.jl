@@ -63,6 +63,8 @@ end
 
 get_nu(cone::HypoPerLog) = cone.dim
 
+use_sqrt_hess_oracles(::Int, cone::HypoPerLog) = false
+
 function set_initial_point!(arr::AbstractVector, cone::HypoPerLog)
     (arr[1], arr[2], w) = get_central_ray_hypoperlog(cone.dim - 2)
     @views arr[3:end] .= w

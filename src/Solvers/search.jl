@@ -83,6 +83,7 @@ function check_cone_points(
     use_max_prox = searcher.use_max_prox
     # proxsqr_bound = abs2(searcher.prox_bound)
     β = 0.01
+    # β = sqrt(sqrt(eps(T)))
 
     taukap = cand.tau[] * cand.kap[]
     (min(cand.tau[], cand.kap[], taukap) < eps(T)) && return false
