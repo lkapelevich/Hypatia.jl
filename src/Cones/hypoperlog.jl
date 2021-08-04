@@ -342,6 +342,33 @@ function dder3(
             0),
         cone.point) / 2
 
+    # u = cone.point[1]
+    # v = cone.point[2]
+    # @views w = cone.point[3:end]
+    # ζ = cone.ζ
+    # τ = ζ + u - d
+    # σ = ζ + v * (1 + d)
+    # Tuuu = 2 / ζ^3
+    # Tuuv = -2 * τ / ζ^3
+    # Tuvv = 2 * τ^2 / ζ^3 + d / ζ^2 / v
+    # Tuvw = 2 * τ * v ./ (ζ^3 * w) - inv.(w) / ζ^2
+    # Tuww_d = sqrt(2 * v^2 / ζ^3) ./ w
+    # Tuww_D = v / ζ^2 ./ w.^2
+    # Tvvv = -2 * τ^3 / ζ^3 - 3 * τ * d / ζ^2 / v - d / ζ / v^2 - 2 / v^3
+    # Tvvw = -2 * τ^2 * v / ζ^3 ./ w + 2 * τ / ζ^2 ./ w - d / ζ^2 ./ w
+    # # negative?
+    # Tvww_d = sqrt(2 * v / ζ^2 - 2 * v^2 * τ / ζ^3) ./ w
+    # Tvww_D = v / ζ^2 ./ w.^2
+    # # Twww_d =
+    # # Twww_D =
+    #
+    # dder3[1] = Tuuu * d1[1] * pdir[1] +
+    #     Tuuv * (d1[1] * pdir[2] + d1[2] * pdir[1]) +
+    #     Tuvv * d1[2] * pdir[2] +
+    #     pdir[2] * dot(Tuvw, d1[3:end]) + d1[2] * dot(Tuvw, pdir[3:end]) +
+    #     Tuvw * (d1[3] * pdir[2] + d1[2] * pdir[3]) +
+    #     Tu
+
     return dder3
 end
 
