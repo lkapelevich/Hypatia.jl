@@ -37,7 +37,7 @@ const model_types = [
 const native_examples = [
     # "densityest",
     # "doptimaldesign",
-    "linearopt",
+    # "linearopt",
     # "matrixcompletion",
     # "matrixregression",
     # "maxvolume",
