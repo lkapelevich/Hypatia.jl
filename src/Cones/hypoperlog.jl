@@ -316,7 +316,7 @@ function dder3(cone::HypoPerLog{T}, dir::AbstractVector{T}) where {T <: Real}
     return dder3
 end
 
-using ForwardDiff
+# using ForwardDiff
 
 function dder3(
     cone::HypoPerLog{T},
@@ -326,48 +326,67 @@ function dder3(
     @assert cone.grad_updated
     dder3 = cone.dder3
     d = cone.dim - 2
-
-    function bar(uvw)
-        @views (u, v, w) = (uvw[1], uvw[2], uvw[3:end])
-        lw = sum(log, w)
-        return -log((lw - d * log(v)) * v - u) - lw - log(v)
-    end
     d1 = inv_hess_prod!(zeros(T, d + 2), ddir, cone)
-    bardir(point, s, t) = bar(point + s * d1 + t * pdir)
-    dder3 .= ForwardDiff.gradient(
-        s2 -> ForwardDiff.derivative(
-            s -> ForwardDiff.derivative(
-                t -> bardir(s2, s, t),
-                0),
-            0),
-        cone.point) / 2
 
-    # u = cone.point[1]
-    # v = cone.point[2]
-    # @views w = cone.point[3:end]
-    # ζ = cone.ζ
-    # τ = ζ + u - d
-    # σ = ζ + v * (1 + d)
-    # Tuuu = 2 / ζ^3
-    # Tuuv = -2 * τ / ζ^3
-    # Tuvv = 2 * τ^2 / ζ^3 + d / ζ^2 / v
-    # Tuvw = 2 * τ * v ./ (ζ^3 * w) - inv.(w) / ζ^2
-    # Tuww_d = sqrt(2 * v^2 / ζ^3) ./ w
-    # Tuww_D = v / ζ^2 ./ w.^2
-    # Tvvv = -2 * τ^3 / ζ^3 - 3 * τ * d / ζ^2 / v - d / ζ / v^2 - 2 / v^3
-    # Tvvw = -2 * τ^2 * v / ζ^3 ./ w + 2 * τ / ζ^2 ./ w - d / ζ^2 ./ w
-    # # negative?
-    # Tvww_d = sqrt(2 * v / ζ^2 - 2 * v^2 * τ / ζ^3) ./ w
-    # Tvww_D = v / ζ^2 ./ w.^2
-    # # Twww_d =
-    # # Twww_D =
-    #
-    # dder3[1] = Tuuu * d1[1] * pdir[1] +
-    #     Tuuv * (d1[1] * pdir[2] + d1[2] * pdir[1]) +
-    #     Tuvv * d1[2] * pdir[2] +
-    #     pdir[2] * dot(Tuvw, d1[3:end]) + d1[2] * dot(Tuvw, pdir[3:end]) +
-    #     Tuvw * (d1[3] * pdir[2] + d1[2] * pdir[3]) +
-    #     Tu
+    # function bar(uvw)
+    #     @views (u, v, w) = (uvw[1], uvw[2], uvw[3:end])
+    #     lw = sum(log, w)
+    #     return -log((lw - d * log(v)) * v - u) - lw - log(v)
+    # end
+    # bardir(point, s, t) = bar(point + s * d1 + t * pdir)
+    # dder3 .= ForwardDiff.gradient(
+    #     s2 -> ForwardDiff.derivative(
+    #         s -> ForwardDiff.derivative(
+    #             t -> bardir(s2, s, t),
+    #             0),
+    #         0),
+    #     cone.point) / 2
+
+    v = cone.point[2]
+    @views w = cone.point[3:end]
+    wi = inv.(w)
+    ζ = cone.ζ
+    τ = cone.ϕ - d
+    σ = ζ + v * (1 + d)
+    Tuuu = 2 / ζ^3
+    Tuuv = -2 * τ / ζ^3
+    Tuuw = -2 * v / ζ^3 ./ w
+    Tuvv = 2 * τ^2 / ζ^3 + d / ζ^2 / v
+    Tuvw = 2 * τ * v ./ (ζ^3 * w) - wi / ζ^2
+    Tuww_c = 2 * v^2 / ζ^3
+    Tuww_D = v / ζ^2 ./ w.^2
+    Tvvv = -2 * τ^3 / ζ^3 - 3 * τ * d / ζ^2 / v - d / ζ / v^2 - 2 / v^3
+    Tvvw = -2 * τ^2 * v / ζ^3 ./ w + 2 * τ / ζ^2 ./ w - d / ζ^2 ./ w
+    Tvww_c = 2 * v / ζ^2 - 2 * v^2 * τ / ζ^3
+    Tvww_D = -τ * v ./ w.^2 / ζ^2 + 1 ./ w.^2 / ζ
+
+    Tuvw_p = dot(Tuvw, pdir[3:end])
+    Tuvw_d = dot(Tuvw, d1[3:end])
+    dp11 = d1[1] * pdir[1]
+    dp12 = d1[1] * pdir[2] + d1[2] * pdir[1]
+    dp22 = d1[2] * pdir[2]
+    dp33 = d1[3:end] .* pdir[3:end]
+    wip = dot(wi, pdir[3:end])
+    wid = dot(wi, d1[3:end])
+
+    dder3[1] = Tuuu * dp11 + Tuuv * dp12 + Tuvv * dp22 +
+        pdir[1] * dot(Tuuw, d1[3:end]) + d1[1] * dot(Tuuw, pdir[3:end]) +
+        pdir[2] * Tuvw_d + d1[2] * Tuvw_p +
+        dot(Tuww_D, dp33) +
+        Tuww_c * wid * wip
+    dder3[2] = Tuuv * dp11 + Tuvv * dp12 + Tvvv * dp22 +
+        pdir[1] * Tuvw_d + d1[1] * Tuvw_p +
+        pdir[2] * dot(Tvvw, d1[3:end]) + d1[2] * dot(Tvvw, pdir[3:end]) +
+        dot(Tvww_D, dp33) +
+        Tvww_c * wid * wip
+    dder3[3:end] .= Tuuw * dp11 + Tuvw * dp12 + Tvvw * dp22 +
+        Tuww_c * (d1[1] * wip + pdir[1] * wid) ./ w + Tuww_D .* (pdir[1] * d1[3:end] + d1[1] * pdir[3:end]) +
+        Tvww_c * (d1[2] * wip + pdir[2] * wid) ./ w + Tvww_D .* (pdir[2] * d1[3:end] + d1[2] * pdir[3:end]) +
+        -2 * v^3 ./ ζ^3 * wip * wid ./ w +
+        -abs2(v / ζ) * ((wid * pdir[3:end] + wip * d1[3:end]) ./ w .+ sum(pdir[3:end] .* d1[3:end] ./ w.^2)) ./ w +
+         (-2 * v / ζ - 2) ./ w.^3 .* dp33
+
+    dder3 ./= 2
 
     return dder3
 end
