@@ -196,6 +196,15 @@ function hess_prod!(
     return prod
 end
 
+function bar(cone::GeneralizedPower)
+    function barrier(uw)
+        (u, w) = (uw[cone.u_idxs], uw[cone.w_idxs])
+        α = cone.α
+        return -log(prod(u.^(2 * α)) - sum(abs2, w)) - sum((1 .- α) .* log.(u))
+    end
+    return barrier
+end
+
 function dder3(cone::GeneralizedPower, dir::AbstractVector)
     @assert cone.grad_updated
     u_idxs = cone.u_idxs

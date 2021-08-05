@@ -10,7 +10,7 @@ include(joinpath(@__DIR__, "cone.jl"))
 function cone_types(T::Type{<:Real})
     cones_T = [
         Cones.Nonnegative{T},
-        # Cones.PosSemidefTri{T, T},
+        Cones.PosSemidefTri{T, T},
         # Cones.PosSemidefTri{T, Complex{T}},
         # Cones.DoublyNonnegativeTri{T},
         # Cones.PosSemidefTriSparse{Cones.PSDSparseDense, T, T},

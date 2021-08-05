@@ -21,10 +21,14 @@ mutable struct HypoGeoMean{T <: Real} <: Cone{T}
     dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
 
@@ -48,7 +52,8 @@ mutable struct HypoGeoMean{T <: Real} <: Cone{T}
 end
 
 reset_data(cone::HypoGeoMean) = (cone.feas_updated = cone.grad_updated =
-    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated =
     cone.hess_fact_updated = false)
 
 function setup_extra_data!(cone::HypoGeoMean{T}) where {T <: Real}
@@ -247,6 +252,15 @@ function inv_hess_prod!(
     end
 
     return prod
+end
+
+function bar(::HypoGeoMean)
+    function barrier(uw)
+        (u, w) = (uw[1], uw[2:end])
+        lw = sum(log, w)
+        return -log(exp(lw / length(w)) - u) - lw
+    end
+    return barrier
 end
 
 function dder3(cone::HypoGeoMean{T}, dir::AbstractVector{T}) where {T <: Real}

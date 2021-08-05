@@ -209,9 +209,21 @@ function alloc_hess!(cone::Cone{T}) where {T <: Real}
     return
 end
 
+function alloc_scal_hess!(cone::Cone{T}) where {T <: Real}
+    dim = dimension(cone)
+    cone.scal_hess = Symmetric(zeros(T, dim, dim), :U)
+    return
+end
+
 function alloc_inv_hess!(cone::Cone{T}) where {T <: Real}
     dim = dimension(cone)
     cone.inv_hess = Symmetric(zeros(T, dim, dim), :U)
+    return
+end
+
+function alloc_inv_scal_hess!(cone::Cone{T}) where {T <: Real}
+    dim = dimension(cone)
+    cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
     return
 end
 
@@ -534,7 +546,8 @@ function inv_scal_hess_prod!(
     cone::Cone{T},
     mu::T,
     ) where T
-    prod .= cholesky(scal_hess(cone, mu)) \ arr
+    # prod .= cholesky(scal_hess(cone, mu)) \ arr
+    prod .= scal_hess(cone, mu) \ arr
     return prod
 end
 

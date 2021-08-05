@@ -85,6 +85,24 @@ function test_oracles(
     @test Cones.hess_prod!(prod_mat, inv_hess, cone) ≈ I atol=tol rtol=tol
     @test Cones.inv_hess_prod!(prod_mat, hess, cone) ≈ I atol=tol rtol=tol
 
+    mu = rand(T)
+    scal_hess = Cones.scal_hess(cone, mu)
+    @test scal_hess * point * sqrt(mu) ≈ dual_point atol=tol rtol=tol
+    @test scal_hess * dual_grad ≈ grad / sqrt(mu) atol=tol rtol=tol
+    inv_scal_hess = Cones.inv_scal_hess(cone, mu)
+    @test inv_scal_hess * dual_point ≈ point * sqrt(mu) atol=tol rtol=tol
+    @test inv_scal_hess * grad / sqrt(mu) ≈ dual_grad atol=tol rtol=tol
+
+    prod_vec = zeros(T, dim)
+    @test Cones.scal_hess_prod!(prod_vec, point * sqrt(mu), cone, mu) ≈
+        dual_point atol=tol rtol=tol
+    @test Cones.scal_hess_prod!(prod_vec, dual_grad, cone, mu) ≈
+        grad / sqrt(mu) atol=tol rtol=tol
+    @test Cones.inv_scal_hess_prod!(prod_vec, dual_point, cone, mu) ≈
+        point * sqrt(mu) atol=tol rtol=tol
+    @test Cones.inv_scal_hess_prod!(prod_vec, grad / sqrt(mu), cone, mu) ≈
+        dual_grad atol=tol rtol=tol
+
     # psi = dual_point + grad
     # proxsqr = dot(psi, Cones.inv_hess_prod!(prod_vec, psi, cone))
     # @test Cones.get_proxsqr(cone, one(T), false) ≈ proxsqr atol=tol rtol=tol
@@ -107,9 +125,7 @@ function test_oracles(
     # test third order deriv oracle
     if Cones.use_dder3(cone)
         @test -Cones.dder3(cone, point) ≈ grad atol=tol rtol=tol
-        if (cone isa Cones.Nonnegative) || (cone isa Cones.HypoPerLog)
-            @test -Cones.dder3(cone, point, hess * point) ≈ -grad
-        end
+        @test -Cones.dder3(cone, point, hess * point) ≈ -grad
 
         dir = perturb_scale!(zeros(T, dim), noise, one(T))
         dder3 = Cones.dder3(cone, dir)

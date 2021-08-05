@@ -23,10 +23,14 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
     dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
 
@@ -52,7 +56,8 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
 end
 
 reset_data(cone::HypoPowerMean) = (cone.feas_updated = cone.grad_updated =
-    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated =
     cone.hess_fact_updated = false)
 
 function setup_extra_data!(cone::HypoPowerMean{T}) where {T <: Real}
@@ -312,6 +317,15 @@ function dder3(cone::HypoPowerMean{T}, dir::AbstractVector{T}) where {T <: Real}
     @. dder3[2:end] = (α * (c7 + rwi * (c8 + ζiϕ * rwi)) + abs2(rwi)) / w
 
     return dder3
+end
+
+function bar(cone::HypoPowerMean)
+    α = cone.α
+    function barrier(uw)
+        (u, w) = (uw[1], uw[2:end])
+        return -log(exp(sum(α .* log.(w))) - u) - sum(log, w)
+    end
+    return barrier
 end
 
 # see analysis in

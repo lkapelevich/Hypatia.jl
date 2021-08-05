@@ -25,10 +25,14 @@ mutable struct HypoRootdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
 
@@ -64,7 +68,8 @@ mutable struct HypoRootdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
 end
 
 reset_data(cone::HypoRootdetTri) = (cone.feas_updated = cone.grad_updated =
-    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated =
     cone.hess_fact_updated = false)
 
 function setup_extra_data!(
@@ -306,6 +311,17 @@ function inv_hess_prod!(
     end
 
     return prod
+end
+
+function bar(cone::HypoRootdetTri{T}) where {T <: Real}
+    d = cone.d
+    function barrier(uw)
+        (u, w) = (uw[1], uw[2:end])
+        W = svec_to_smat!(zeros(eltype(w), d, d), w, cone.rt2)
+        lw = logdet(cholesky(Hermitian(W, :U)))
+        return -log(exp(lw / d) - u) - lw
+    end
+    return barrier
 end
 
 function dder3(cone::HypoRootdetTri{T}, dir::AbstractVector{T}) where {T <: Real}
