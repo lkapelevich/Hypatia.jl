@@ -499,6 +499,10 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     # check = norm(BigFloat.(cone.scal_hess) * s - z)
     # @show check
     # @show norm(bf_hess - old_hess_mu)
+    # lh_check1 = abs(dot(BigFloat.(z), BigFloat.(ts)) - nu)
+    # lh_check2 = abs(dot(BigFloat.(s), BigFloat.(tz)) - nu)
+    # @show lh_check1
+    # @show lh_check2
 
     cone.scal_hess_updated = true
     return cone.scal_hess
@@ -532,6 +536,87 @@ function inv_scal_hess_prod!(
     ) where T
     prod .= cholesky(scal_hess(cone, mu)) \ arr
     return prod
+end
+
+# function inv_scal_hess_prod!(
+#     prod::AbstractVecOrMat,
+#     arr::AbstractVecOrMat,
+#     cone::Cone{T},
+#     mu::T,
+#     ) where T
+#
+#     # TODO refactor
+#     hess(cone)
+#
+#     rtmu = sqrt(mu)
+#     old_hess_mu = copy(cone.hess)
+#     old_hess = old_hess_mu / mu
+#     H = cone.scal_hess.data
+#     s = cone.point * rtmu
+#     z = cone.dual_point
+#     ts = -dual_grad(cone)
+#     tz = -grad(cone) / rtmu
+#
+#     nu = get_nu(cone)
+#     cone_mu = dot(s, z) / nu
+#     tmu = dot(ts, tz) / nu
+#
+#     ds = s - cone_mu * ts
+#     dz = z - cone_mu * tz
+#     Hts = old_hess * ts
+#     tol = sqrt(eps(T))
+#     # tol = 1000eps(T)
+#     if (norm(ds) < tol) || (norm(dz) < tol) || (abs(cone_mu * tmu - 1) < tol) ||
+#         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
+#         # @show "~~ skipping updates ~~"
+#         return inv_hess_prod!(prod, arr, cone)
+#     else
+#         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
+#         v2 = Hts - tmu * tz
+#         M1 = dz * v1'
+#
+#         # H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
+#         #     (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
+#
+#         c1 = 1 / sqrt(2 * mu * nu)
+#         c2 = sqrt(mu / (dot(ts, Hts) - nu * tmu^2))
+#         U = hcat(c1 * dz, c1 * v1, -c2 * v2)
+#         V = hcat(c1 * v1, c1 * dz, c2 * v2)
+#
+#         t1 = inv_hess_prod!(copy(arr), arr, cone)
+#         t2 = V * t1
+#         t3 = inv_hess_prod!(copy(U), U, cone)
+#         t4 = I + V * t3
+#         t5 = t4 \ t2
+#         t6 = U * t5
+#         t7 = inv_hess_prod!(copy(t6), t6, cone)
+#         prod .= t1 - t7
+#     end
+#
+#     return prod
+# end
+
+bar(cone::Cone) = error()
+using ForwardDiff
+function dder3(
+    cone::Cone{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    dder3 = cone.dder3
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+
+    barrier = bar(cone)
+    bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
+    dder3 .= ForwardDiff.gradient(
+        s2 -> ForwardDiff.derivative(
+            s -> ForwardDiff.derivative(
+                t -> bardir(s2, s, t),
+                0),
+            0),
+        cone.point) / 2
+
+    return dder3
 end
 
 include("nonnegative.jl")

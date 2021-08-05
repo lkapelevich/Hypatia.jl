@@ -497,7 +497,7 @@ function calc_convergence_params(solver::Solver{T}) where {T <: Real}
 
     compl = solver.gap + point.tau[] * point.kap[]
     # @show compl / solver.compl_prev
-    # @show solver.x_residual ./ solver.x_residual_prev
+    # @show sum(solver.x_residual ./ solver.x_residual_prev) / length(solver.x_residual_prev) - compl / solver.compl_prev
     α = solver.stepper.prev_alpha
     γ = solver.stepper.gamma
     # @show 1 - α * (1 - γ)

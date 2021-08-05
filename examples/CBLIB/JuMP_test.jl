@@ -108,8 +108,6 @@ else
         "demb782",
         "enpro48",
         "enpro56",
-        "ex1223",
-        "ex1223b",
         "fang88",
         "fiac81a",
         "fiac81b",

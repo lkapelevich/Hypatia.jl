@@ -120,10 +120,18 @@ function step(stepper::SymmStepper{T}, solver::Solver{T}) where {T <: Real}
     # @show dot(s_comb, z_comb) + t_comb * k_comb
 
     if iszero(alpha)
-        @warn("cannot step in combined direction")
-        solver.status = NumericalFailure
-        stepper.prev_alpha = alpha
-        return false
+        # solver.verbose && println("trying centering")
+        # stepper.gamma = 1
+        # dir_predadj.vec .= 0
+        # solver.time_search += @elapsed alpha =
+        #     search_alpha(point, model, stepper)
+
+        if iszero(alpha)
+            @warn("cannot step in combined direction")
+            solver.status = NumericalFailure
+            stepper.prev_alpha = alpha
+            return false
+        end
     end
 
     # step

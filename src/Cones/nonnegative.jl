@@ -202,7 +202,11 @@ function dder3(cone::Nonnegative, dir::AbstractVector)
     return cone.dder3
 end
 
-function dder3(cone::Nonnegative, pdir::AbstractVector, ddir::AbstractVector)
+function dder3(
+    cone::Nonnegative{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T}
+    ) where {T <: Real}
     @. cone.dder3 = -pdir * ddir / cone.point
     return cone.dder3
 end
