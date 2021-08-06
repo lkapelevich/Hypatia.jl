@@ -474,6 +474,7 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
         cone.scal_hess = Symmetric(zeros(T, dim, dim), :U)
     end
     hess(cone)
+    # @show dot(cone.point, cone.hess, cone.point) - get_nu(cone)
 
     rtmu = sqrt(mu)
     old_hess_mu = copy(cone.hess)
@@ -505,6 +506,12 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
         #     (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
         H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
             (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
+
+        t = mu * norm(old_hess - tz * tz' / nu - v2 * v2' / (dot(ts, Hts) - nu * tmu^2))
+        cross = [s[2] * ts[3] - s[3] * ts[2], s[3] * ts[1] - s[1] * ts[3], s[1] * ts[2] - s[2] * ts[1]]
+        Wkt = hcat(z / sqrt(dot(s, z)), dz / sqrt(dot(ds, dz)), sqrt(t) * cross / norm(cross))
+        # @show Wkt * Wkt' * s - z
+        H .= Wkt * Wkt'
     end
     # lh_check1 = abs(dot(BigFloat.(z), BigFloat.(ts)) - nu)
     # lh_check2 = abs(dot(BigFloat.(s), BigFloat.(tz)) - nu)
@@ -512,8 +519,8 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     # @show lh_check2
     # @assert cone.scal_hess * s ≈ z
     # @assert cone.scal_hess * ts ≈ tz
-    # check = norm(BigFloat.(cone.scal_hess) * s - z)
-    # @show check
+    check = norm(BigFloat.(cone.scal_hess) * ts - tz)
+    @show check
 
     cone.scal_hess_updated = true
     return cone.scal_hess

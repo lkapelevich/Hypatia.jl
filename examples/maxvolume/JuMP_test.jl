@@ -17,15 +17,15 @@ insts["fast"] = [
     ]
 insts["various"] = [
     ((500, true, false),),
-    ((500, false, true),),
+    # ((500, false, true),),
     ((500, true, false), :SOCExpPSD),
     ((500, false, true), :SOCExpPSD),
     ((1000, true, false),),
-    ((1000, false, true),),
+    # ((1000, false, true),),
     ((1000, true, false), :SOCExpPSD),
     ((1000, false, true), :SOCExpPSD, relaxed_tols),
     ((2000, true, false),),
-    ((2000, false, true),),
+    # ((2000, false, true),),
     ((2000, true, false), :SOCExpPSD),
     ]
 return (MaxVolumeJuMP, insts)

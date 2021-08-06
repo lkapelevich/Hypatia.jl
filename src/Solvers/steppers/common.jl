@@ -52,7 +52,7 @@ function update_rhs_predadj(
         prim_dir_k = dir.primal_views[k] #* sqrt(solver.mu)
         dual_dir_k = dir.dual_views[k] #* sqrt(solver.mu)
         # @show typeof(cone_k)
-        # @show -Cones.dder3(cone_k, cone_k.point, Cones.hess(cone_k) * cone_k.point) ./ Cones.grad(cone_k)
+        # @show -Cones.dder3(cone_k, cone_k.point, Cones.hess(cone_k) * cone_k.point) + Cones.grad(cone_k)
         # @assert -Cones.dder3(cone_k, cone_k.point, Cones.hess(cone_k) * cone_k.point) ≈ -Cones.grad(cone_k)
         dder3_k = Cones.dder3(cone_k, prim_dir_k, dual_dir_k) / sqrt(solver.mu)
         @. rhs.s_views[k] = dder3_k

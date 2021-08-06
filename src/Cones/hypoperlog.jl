@@ -78,6 +78,8 @@ function update_feas(cone::HypoPerLog{T}) where {T <: Real}
 
     if v > eps(T) && all(>(eps(T)), w)
         u = cone.point[1]
+        # bf_phi = sum(log(BigFloat(wi) / BigFloat(v)) for wi in w)
+        # cone.ϕ = bf_phi
         cone.ϕ = sum(log(wi / v) for wi in w)
         cone.ζ = v * cone.ϕ - u
         cone.is_feas = (cone.ζ > eps(T))
@@ -174,6 +176,11 @@ function update_hess(cone::HypoPerLog)
         end
         H[j2, j2] -= g[j2] / w[j]
     end
+
+    # hess_check = ForwardDiff.hessian(bar(cone), BigFloat.(cone.point))
+    # @show hess_check - cone.hess
+
+    # @show dot(cone.point, cone.hess, cone.point) - 3
 
     cone.hess_updated = true
     return cone.hess
