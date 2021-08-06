@@ -65,7 +65,9 @@ reset_data(cone::PosSemidefTri) = (cone.feas_updated = cone.dual_feas_updated =
     cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
     cone.inv_hess_updated = cone.inv_scal_hess_updated = cone.nt_updated = false)
 
-use_sqrt_hess_oracles(::Int, cone::PosSemidefTri) = true
+# use_sqrt_hess_oracles(::Int, cone::PosSemidefTri) = true
+# TODO sqrt scal hess
+use_sqrt_hess_oracles(::Int, cone::PosSemidefTri) = false
 
 function setup_extra_data!(
     cone::PosSemidefTri{T, R},
@@ -300,6 +302,28 @@ function inv_sqrt_hess_prod!(
 
     return prod
 end
+
+# function inv_sqrt_scal_hess_prod!(
+#     prod::AbstractVecOrMat{T},
+#     arr::AbstractVecOrMat{T},
+#     cone::PosSemidefTri{T, R},
+#     mu::T
+#     ) where {T <: Real, R <: RealOrComplex{T}}
+#     @assert cone.feas_updated && cone.dual_feas_updated
+#     cone.nt_updated || update_nt(cone, mu)
+#
+#     (U, lambda, V) = cone.nt_svd
+#     scalmat_sqrt = cone.dual_fact_mat.U \ (U * Diagonal(sqrt.(lambda)))
+#
+#     @inbounds for i in 1:size(arr, 2)
+#         svec_to_smat!(cone.mat4, view(arr, :, i), cone.rt2)
+#         copytri!(cone.mat4, 'U', true)
+#         temp = scalmat_sqrt' * cone.mat4 * scalmat_sqrt
+#         smat_to_svec!(view(prod, :, i), temp, cone.rt2)
+#     end
+#
+#     return prod
+# end
 
 function dder3(cone::PosSemidefTri, dir::AbstractVector)
     @assert cone.grad_updated

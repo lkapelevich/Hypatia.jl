@@ -10,34 +10,51 @@ mutable struct EpiNormEucl{T <: Real} <: Cone{T}
 
     point::Vector{T}
     dual_point::Vector{T}
+    nt_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
+    dual_feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     inv_hess_updated::Bool
     is_feas::Bool
+    nt_updated::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
 
     dist::T
+    dual_dist::T
+    rt_dist_ratio::T
 
     function EpiNormEucl{T}(dim::Int) where {T <: Real}
         @assert dim >= 2
         cone = new{T}()
         cone.dim = dim
+        cone.dual_grad = zeros(T, dim)
+        cone.nt_point = zeros(T, dim)
         return cone
     end
 end
 
 use_dual_barrier(::EpiNormEucl) = false
 
-reset_data(cone::EpiNormEucl) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = false)
+reset_data(cone::EpiNormEucl) = (cone.feas_updated = cone.dual_feas_updated =
+    cone.grad_updated = cone.dual_grad_updated = cone.hess_updated =
+    cone.scal_hess_updated =  cone.inv_scal_hess_updated =
+    cone.inv_hess_updated = cone.nt_updated = false)
 
-use_sqrt_hess_oracles(::Int, cone::EpiNormEucl) = true
+# use_sqrt_hess_oracles(::Int, cone::EpiNormEucl) = true
+# TODO sqrt scal oracles
+use_sqrt_hess_oracles(::Int, cone::EpiNormEucl) = false
 
 get_nu(cone::EpiNormEucl) = 2
 
@@ -72,8 +89,9 @@ function is_dual_feas(cone::EpiNormEucl{T}) where T
 
     if u > eps(T)
         w = view(cone.dual_point, 2:cone.dim)
-        @views dual_dist = abs2(u) - sum(abs2, cone.dual_point[2:end])
-        return (dual_dist > 2 * eps(T))
+        @views cone.dual_dist = (abs2(u) - sum(abs2, w)) / 2
+        cone.dual_feas_updated = true
+        return (cone.dual_dist > eps(T))
     end
 
     return false
@@ -89,6 +107,16 @@ function update_grad(cone::EpiNormEucl)
     return cone.grad
 end
 
+function update_dual_grad(cone::EpiNormEucl)
+    @assert cone.dual_feas_updated
+
+    @. cone.dual_grad = cone.dual_point / cone.dual_dist
+    cone.dual_grad[1] *= -1
+
+    cone.dual_grad_updated = true
+    return cone.dual_grad
+end
+
 function update_hess(cone::EpiNormEucl)
     @assert cone.grad_updated
     isdefined(cone, :hess) || alloc_hess!(cone)
@@ -102,6 +130,48 @@ function update_hess(cone::EpiNormEucl)
 
     cone.hess_updated = true
     return cone.hess
+end
+
+function update_nt(cone::EpiNormEucl{T}, mu::T) where {T}
+    @assert cone.feas_updated
+    @assert cone.dual_feas_updated
+    nt_point = cone.nt_point
+
+    normalized_point = cone.point * 1 / sqrt(cone.dist * 2)
+    normalized_dual_point = cone.dual_point / sqrt(cone.dual_dist * 2)
+    gamma = sqrt((1 + dot(normalized_point, normalized_dual_point)) / 2)
+
+    nt_point[1] = normalized_point[1] + normalized_dual_point[1]
+    @. @views nt_point[2:end] = normalized_point[2:end] - normalized_dual_point[2:end]
+    nt_point ./= 2 * gamma
+
+    nt_point_sqrt = copy(nt_point)
+    nt_point_sqrt[1] += 1
+    nt_point_sqrt ./= sqrt(2 * nt_point_sqrt[1])
+
+    cone.rt_dist_ratio = sqrt(cone.dist / cone.dual_dist)
+
+    cone.nt_updated = true
+
+    return
+end
+
+function update_scal_hess(cone::EpiNormEucl{T}, mu::T) where {T}
+    @assert cone.grad_updated
+    @assert cone.is_feas
+    isdefined(cone, :scal_hess) || alloc_scal_hess!(cone)
+    cone.nt_updated || update_nt(cone, mu)
+
+    mul!(cone.scal_hess.data, cone.nt_point, cone.nt_point', 2, false)
+    cone.scal_hess.data[:, 1] *= -1
+    cone.scal_hess += I # TODO
+    cone.scal_hess.data[1, :] *= -1
+    cone.scal_hess.data ./= cone.rt_dist_ratio
+
+    cone.scal_hess.data ./= sqrt(mu)
+
+    cone.scal_hess_updated = true
+    return cone.scal_hess
 end
 
 function update_inv_hess(cone::EpiNormEucl)
@@ -223,6 +293,29 @@ function dder3(cone::EpiNormEucl, dir::AbstractVector)
     @. @views dder3[2:end] += dotdHd * w + dotpHd * w_dir
     dder3[1] += -dotdHd * u - dotpHd * u_dir
     dder3 ./= 2 * cone.dist
+
+    return dder3
+end
+
+jdot(x::AbstractVector, y::AbstractVector) = @views x[1] * y[1] - dot(x[2:end], y[2:end])
+
+function dder3(
+    cone::EpiNormEucl{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    @assert cone.feas_updated
+    @assert cone.dual_feas_updated
+    dder3 = cone.dder3
+    point = cone.point
+
+    jdot_p_s = jdot(point, pdir)
+    @. dder3 = jdot_p_s * ddir
+    dot_s_z = dot(pdir, ddir)
+    dot_p_z = dot(point, ddir)
+    dder3[1] += dot_s_z * point[1] - dot_p_z * pdir[1]
+    @. @views dder3[2:end] += -dot_s_z * point[2:end] + dot_p_z * pdir[2:end]
+    dder3 ./= -cone.dist * 2
 
     return dder3
 end

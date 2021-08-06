@@ -501,20 +501,19 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
         v1 = z + mu * tz + dz / (mu * tmu - 1)
         v2 = Hts - tmu * tz
         M1 = dz * v1'
+        # bf = old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
+        #     (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
         H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
             (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
-        # H .= old_hess * mu + z * z' / dot(s, z) + dz * dz' / dot(ds, dz) - mu / nu * tz * tz' - mu *
-        #     v2 * v2' / (dot(ts, Hts) - nu * tmu^2)
     end
-    # @assert cone.scal_hess * s ≈ z
-    # @assert cone.scal_hess * ts ≈ tz
-    # check = norm(BigFloat.(cone.scal_hess) * s - z)
-    # @show check
-    # @show norm(bf_hess - old_hess_mu)
     # lh_check1 = abs(dot(BigFloat.(z), BigFloat.(ts)) - nu)
     # lh_check2 = abs(dot(BigFloat.(s), BigFloat.(tz)) - nu)
     # @show lh_check1
     # @show lh_check2
+    # @assert cone.scal_hess * s ≈ z
+    # @assert cone.scal_hess * ts ≈ tz
+    # check = norm(BigFloat.(cone.scal_hess) * s - z)
+    # @show check
 
     cone.scal_hess_updated = true
     return cone.scal_hess

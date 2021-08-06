@@ -76,7 +76,7 @@ else
         # "syn30h",
         # "rsyn0820m",
         # "syn20m02m",
-        # all
+        # exp and orthant
         "LogExpCR-n100-m1200",
         "LogExpCR-n100-m1600",
         "LogExpCR-n100-m400",
@@ -227,6 +227,34 @@ else
         "synthes2",
         "synthes3",
         "varun",
+        # exp and epinormecul
+        # "ex1223",
+        # "ex1223b",
+        # "gams01",
+        # "port_12_9_3_a_1",
+        # "port_12_9_3_a_2",
+        # "port_12_9_3_b_1",
+        # "port_12_9_3_b_2",
+        # "port_12_9_3_c_1",
+        # "port_12_9_3_c_2",
+        # "port_12_9_3_d_1",
+        # "port_12_9_3_d_2",
+        # "port_16_12_4_a_1",
+        # "port_16_12_4_a_2",
+        # "port_16_12_4_b_1",
+        # "port_16_12_4_b_2",
+        # "port_16_12_4_c_1",
+        # "port_16_12_4_c_2",
+        # "port_16_12_4_d_1",
+        # "port_16_12_4_d_2",
+        # "port_20_15_5_a_1",
+        # "port_20_15_5_a_2",
+        # "port_20_15_5_b_1",
+        # "port_20_15_5_b_2",
+        # "port_20_15_5_c_1",
+        # "port_20_15_5_c_2",
+        # "port_20_15_5_d_1",
+        # "port_20_15_5_d_2",
         ]
 end
 

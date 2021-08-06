@@ -11,23 +11,34 @@ mutable struct EpiPerSquare{T <: Real} <: Cone{T}
 
     point::Vector{T}
     dual_point::Vector{T}
+    nt_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
+    dual_feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     inv_hess_updated::Bool
     sqrt_hess_prod_updated::Bool
     inv_sqrt_hess_prod_updated::Bool
     is_feas::Bool
+    nt_updated::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
 
     dist::T
+    dual_dist::T
     rtdist::T
     denom::T
+    rt_dist_ratio::T
     sqrt_hess_vec::Vector{T}
     inv_sqrt_hess_vec::Vector{T}
 
@@ -35,17 +46,23 @@ mutable struct EpiPerSquare{T <: Real} <: Cone{T}
         @assert dim >= 3
         cone = new{T}()
         cone.dim = dim
+        cone.dual_grad = zeros(T, dim)
+        cone.nt_point = zeros(T, dim)
         return cone
     end
 end
 
 use_dual_barrier(::EpiPerSquare) = false
 
-reset_data(cone::EpiPerSquare) = (cone.feas_updated = cone.grad_updated =
+reset_data(cone::EpiPerSquare) = (cone.feas_updated = cone.dual_feas_updated =
+    cone.grad_updated = cone.dual_grad_updated = cone.nt_updated =
     cone.hess_updated = cone.inv_hess_updated = cone.sqrt_hess_prod_updated =
+    cone.scal_hess_updated = cone.inv_scal_hess_updated =
     cone.inv_sqrt_hess_prod_updated = false)
 
-use_sqrt_hess_oracles(::Int, cone::EpiPerSquare) = true
+# use_sqrt_hess_oracles(::Int, cone::EpiPerSquare) = true
+# TODO sqrt scal oracles
+use_sqrt_hess_oracles(::Int, cone::EpiPerSquare) = false
 
 get_nu(cone::EpiPerSquare) = 2
 
@@ -79,7 +96,9 @@ function is_dual_feas(cone::EpiPerSquare{T}) where T
 
     if u > eps(T) && v > eps(T)
         @views w = cone.dual_point[3:end]
-        return (u * v - sum(abs2, w) / 2 > eps(T))
+        cone.dual_dist = u * v - sum(abs2, w) / 2
+        cone.dual_feas_updated = true
+        return (cone.dual_dist > eps(T))
     end
 
     return false
@@ -95,6 +114,18 @@ function update_grad(cone::EpiPerSquare)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::EpiPerSquare)
+    @assert cone.dual_feas_updated
+
+    @. cone.dual_grad = cone.dual_point / cone.dual_dist
+    g2 = cone.dual_grad[2]
+    cone.dual_grad[2] = -cone.dual_grad[1]
+    cone.dual_grad[1] = -g2
+
+    cone.dual_grad_updated = true
+    return cone.dual_grad
 end
 
 function update_hess(cone::EpiPerSquare)
@@ -248,6 +279,50 @@ function inv_sqrt_hess_prod!(
     return prod
 end
 
+function update_nt(cone::EpiPerSquare)
+    @assert cone.is_feas
+    @assert cone.dual_feas_updated
+    nt_point = cone.nt_point
+
+    normalized_point = cone.point ./ sqrt(cone.dist * 2)
+    normalized_dual_point = cone.dual_point ./ sqrt(cone.dual_dist * 2)
+    gamma = sqrt((1 + dot(normalized_point, normalized_dual_point)) / 2)
+
+    nt_point[1] = normalized_point[2] + normalized_dual_point[1]
+    nt_point[2] = normalized_point[1] + normalized_dual_point[2]
+    @. @views nt_point[3:end] = -normalized_point[3:end] + normalized_dual_point[3:end]
+    nt_point ./= 2 * gamma
+
+    nt_point_sqrt = copy(nt_point)
+    nt_point_sqrt[1] += 1
+    nt_point_sqrt ./= sqrt(2 * nt_point_sqrt[1])
+    cone.rt_dist_ratio = sqrt(cone.dist / cone.dual_dist)
+
+    cone.nt_updated = true
+
+    return
+end
+
+function update_scal_hess(cone::EpiPerSquare{T}, mu::T) where {T}
+    @assert cone.grad_updated
+    @assert cone.is_feas
+    cone.nt_updated || update_nt(cone)
+    isdefined(cone, :scal_hess) || alloc_scal_hess!(cone)
+    H = cone.scal_hess.data
+    nt_point = cone.nt_point
+
+    mul!(H, nt_point, nt_point', 2, false)
+    @inbounds for j in 3:cone.dim
+        H[j, j] += 1
+    end
+    H[1, 2] -= 1
+    H ./= cone.rt_dist_ratio
+    cone.scal_hess.data ./= sqrt(mu)
+
+    cone.scal_hess_updated = true
+    return cone.scal_hess
+end
+
 function dder3(cone::EpiPerSquare, dir::AbstractVector)
     @assert cone.grad_updated
     dim = cone.dim
@@ -269,6 +344,26 @@ function dder3(cone::EpiPerSquare, dir::AbstractVector)
     dder3[1] += -dotdHd * v - dotpHd * v_dir
     dder3[2] += -dotdHd * u - dotpHd * u_dir
     dder3 ./= 2 * cone.dist
+
+    return dder3
+end
+
+function dder3(
+    cone::EpiPerSquare{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    @assert cone.feas_updated
+    @assert cone.dual_feas_updated
+    dder3 = cone.dder3
+    point = cone.point
+    dot_s_z = dot(pdir, ddir)
+
+    @views pdir_dist = 2 * pdir[1] * pdir[2] - sum(abs2, pdir[3:end])
+    dder3 .= -dot_s_z * (point - pdir)
+    (dder3[1], dder3[2]) = (-2 * dder3[2], -2 * dder3[1])
+    @. dder3 += ddir * pdir_dist
+    dder3 ./= -cone.dist * 2
 
     return dder3
 end
