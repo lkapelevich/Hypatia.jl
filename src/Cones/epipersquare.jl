@@ -357,13 +357,23 @@ function dder3(
     @assert cone.dual_feas_updated
     dder3 = cone.dder3
     point = cone.point
-    dot_s_z = dot(pdir, ddir)
 
-    @views pdir_dist = 2 * pdir[1] * pdir[2] - sum(abs2, pdir[3:end])
-    dder3 .= -dot_s_z * (point - pdir)
-    (dder3[1], dder3[2]) = (-2 * dder3[2], -2 * dder3[1])
-    @. dder3 += ddir * pdir_dist
+    @views jdot_p_s = pdir[1] * point[2] + pdir[2] * point[1] -
+        dot(point[3:end], pdir[3:end])
+    @. dder3 = jdot_p_s * ddir
+    dot_s_z = dot(pdir, ddir)
+    dot_p_z = dot(point, ddir)
+    @. @views dder3[1:2] += dot_s_z * point[2:-1:1] - dot_p_z * pdir[2:-1:1]
+    @. @views dder3[3:end] += -dot_s_z * point[3:end] + dot_p_z * pdir[3:end]
     dder3 ./= -cone.dist * 2
 
     return dder3
 end
+
+# function bar(::EpiPerSquare)
+#     function barrier(uvw)
+#         (u, v, w) = (uvw[1], uvw[2], uvw[3:end])
+#         return -log(2 * u * v - sum(abs2, w))
+#     end
+#     return barrier
+# end

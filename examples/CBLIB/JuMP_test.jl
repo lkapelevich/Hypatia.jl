@@ -227,7 +227,7 @@ else
         # "synthes2",
         # "synthes3",
         # "varun",
-        # exp and epinormecul
+        # exp and symmetric cones
         # "ex1223",
         # "ex1223b",
         # "gams01",

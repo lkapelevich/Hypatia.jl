@@ -319,3 +319,11 @@ function dder3(
 
     return dder3
 end
+
+# function bar(::EpiNormEucl)
+#     function barrier(uw)
+#         (u, w) = (uw[1], uw[2:end])
+#         return -log(abs2(u) - sum(abs2, w))
+#     end
+#     return barrier
+# end

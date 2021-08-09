@@ -349,8 +349,6 @@ function dder3(
     D = Hermitian(svec_to_smat!(zeros(T, d, d), ddir, cone.rt2), :U)
     Si = Hermitian(cone.inv_mat, :U)
     PD = P * D
-
-    smat_to_svec!(dder3, (Si * PD + PD * Si) / -2, cone.rt2)
-
+    smat_to_svec!(dder3, (Si * PD + PD' * Si) / -2, cone.rt2)
     return dder3
 end
