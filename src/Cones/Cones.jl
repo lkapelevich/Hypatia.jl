@@ -199,6 +199,12 @@ load_point(
     ) = copyto!(cone.point, point)
 
 load_dual_point(
+    cone::Cone{T},
+    point::AbstractVector{T},
+    scal::T,
+    ) where {T <: Real} = (@. cone.dual_point = scal * point)
+
+load_dual_point(
     cone::Cone,
     point::AbstractVector,
     ) = copyto!(cone.dual_point, point)
@@ -542,7 +548,37 @@ function scal_hess_prod!(
     cone::Cone{T},
     mu::T,
     ) where T
-    prod .= scal_hess(cone, mu) * arr
+    # prod .= scal_hess(cone, mu) * arr
+
+    rtmu = sqrt(mu)
+    s = cone.point * rtmu
+    z = cone.dual_point
+    ts = -dual_grad(cone)
+    tz = -grad(cone) / rtmu
+
+    nu = get_nu(cone)
+    cone_mu = dot(s, z) / nu
+    tmu = dot(ts, tz) / nu
+
+    ds = s - cone_mu * ts
+    dz = z - cone_mu * tz
+    Hts = hess_prod!(copy(ts), ts, cone)
+    Hts ./= mu
+
+    hess_prod!(prod, arr, cone)
+    tol = sqrt(eps(T))
+    if (norm(ds) < tol) || (norm(dz) < tol) || (abs(cone_mu * tmu - 1) < tol) ||
+        (abs(dot(ts, Hts) - nu * tmu^2) < tol)
+        return prod
+    else
+        v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
+        v2 = Hts - tmu * tz
+        M1 = dz * v1'
+        prod .*= cone_mu / mu
+        prod .+= 1 / (2 * cone_mu * nu) * (dz * (v1' * arr) + v1 * (dz' * arr)) -
+            cone_mu / (dot(ts, Hts) - nu * tmu^2) * v2 * (v2' * arr)
+    end
+
     return prod
 end
 

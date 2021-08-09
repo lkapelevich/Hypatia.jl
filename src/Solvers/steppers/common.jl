@@ -3,6 +3,9 @@ interior point stepping routines for algorithms based on the
 homogeneous self dual embedding
 =#
 
+# TODO
+# can we dispatch these on the stepper type?
+
 # update the RHS for prediction direction
 function update_rhs_pred(
     solver::Solver{T},
