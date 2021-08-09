@@ -87,20 +87,20 @@ function test_oracles(
 
     mu = rand(T)
     scal_hess = Cones.scal_hess(cone, mu)
-    @test scal_hess * point * sqrt(mu) ≈ dual_point atol=tol rtol=tol
-    @test scal_hess * dual_grad ≈ grad / sqrt(mu) atol=tol rtol=tol
+    @test scal_hess * point ≈ dual_point atol=tol rtol=tol
+    @test scal_hess * dual_grad ≈ grad atol=tol rtol=tol
     inv_scal_hess = Cones.inv_scal_hess(cone, mu)
-    @test inv_scal_hess * dual_point ≈ point * sqrt(mu) atol=tol rtol=tol
-    @test inv_scal_hess * grad / sqrt(mu) ≈ dual_grad atol=tol rtol=tol
+    @test inv_scal_hess * dual_point ≈ point atol=tol rtol=tol
+    @test inv_scal_hess * grad ≈ dual_grad atol=tol rtol=tol
 
     prod_vec = zeros(T, dim)
-    @test Cones.scal_hess_prod!(prod_vec, point * sqrt(mu), cone, mu) ≈
+    @test Cones.scal_hess_prod!(prod_vec, point, cone, mu) ≈
         dual_point atol=tol rtol=tol
     @test Cones.scal_hess_prod!(prod_vec, dual_grad, cone, mu) ≈
-        grad / sqrt(mu) atol=tol rtol=tol
+        grad atol=tol rtol=tol
     @test Cones.inv_scal_hess_prod!(prod_vec, dual_point, cone, mu) ≈
-        point * sqrt(mu) atol=tol rtol=tol
-    @test Cones.inv_scal_hess_prod!(prod_vec, grad / sqrt(mu), cone, mu) ≈
+        point atol=tol rtol=tol
+    @test Cones.inv_scal_hess_prod!(prod_vec, grad, cone, mu) ≈
         dual_grad atol=tol rtol=tol
 
     # psi = dual_point + grad

@@ -168,8 +168,6 @@ function update_scal_hess(cone::EpiNormEucl{T}, mu::T) where {T}
     cone.scal_hess.data[1, :] *= -1
     cone.scal_hess.data ./= cone.rt_dist_ratio
 
-    cone.scal_hess.data ./= sqrt(mu)
-
     cone.scal_hess_updated = true
     return cone.scal_hess
 end

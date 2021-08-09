@@ -87,7 +87,7 @@ function update_scal_hess(cone::Nonnegative{T}, mu::T) where T
         cone.scal_hess = Diagonal(zeros(T, cone.dim))
     end
 
-    @. cone.scal_hess.diag = cone.dual_point / (cone.point * sqrt(mu))
+    @. cone.scal_hess.diag = cone.dual_point / cone.point
     cone.scal_hess_updated = true
     return cone.scal_hess
 end
@@ -97,7 +97,7 @@ function update_inv_scal_hess(cone::Nonnegative{T}, mu::T) where T
         cone.inv_scal_hess = Diagonal(zeros(T, cone.dim))
     end
 
-    @. cone.inv_scal_hess.diag = cone.point * sqrt(mu) / cone.dual_point
+    @. cone.inv_scal_hess.diag = cone.point / cone.dual_point
     cone.inv_scal_hess_updated = true
     return cone.inv_scal_hess
 end
@@ -140,7 +140,7 @@ function scal_hess_prod!(
     mu::T,
     ) where T
     @assert cone.is_feas
-    @. prod = arr * cone.dual_point / (cone.point * sqrt(mu))
+    @. prod = arr * cone.dual_point / cone.point
     return prod
 end
 
@@ -151,7 +151,7 @@ function inv_scal_hess_prod!(
     mu::T,
     ) where T
     @assert cone.is_feas
-    @. prod = arr * cone.point * sqrt(mu) / cone.dual_point
+    @. prod = arr * cone.point / cone.dual_point
     return prod
 end
 
@@ -172,7 +172,7 @@ function sqrt_scal_hess_prod!(
     mu::T,
     ) where T
     @assert cone.is_feas
-    @. prod = arr * sqrt(cone.dual_point) / sqrt(cone.point * sqrt(mu))
+    @. prod = arr * sqrt(cone.dual_point) / sqrt(cone.point)
     return prod
 end
 
@@ -193,7 +193,7 @@ function inv_sqrt_scal_hess_prod!(
     mu::T,
     ) where T
     @assert cone.is_feas
-    @. prod = arr * sqrt(cone.point) * sqrt(sqrt(mu)) / sqrt(cone.dual_point)
+    @. prod = arr * sqrt(cone.point) / sqrt(cone.dual_point)
     return prod
 end
 
@@ -227,7 +227,7 @@ function get_proxsqr(
     use_max_prox::Bool,
     ) where {T <: Real}
     aggfun = minimum
-    return aggfun(si * zi * irtmu for (si, zi) in zip(cone.point, cone.dual_point))
+    return aggfun(si * zi for (si, zi) in zip(cone.point, cone.dual_point))
 end
 
 # TODO distance to boundary

@@ -124,7 +124,7 @@ function check_cone_points(
         cone_k = cones[k]
         start_time = time()
         Cones.load_point(cone_k, cand.primal_views[k], irtmu)
-        Cones.load_dual_point(cone_k, cand.dual_views[k])
+        Cones.load_dual_point(cone_k, cand.dual_views[k], irtmu)
         Cones.reset_data(cone_k)
 
         in_prox_k = false

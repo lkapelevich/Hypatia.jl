@@ -147,7 +147,7 @@ end
 
 function update_nt(cone::PosSemidefTri{T, R},
     mu::T) where {T <: Real, R <: RealOrComplex{T}}
-    cone.nt_svd = svd(cone.dual_fact_mat.U * cone.fact_mat.L * sqrt(sqrt(mu)))
+    cone.nt_svd = svd(cone.dual_fact_mat.U * cone.fact_mat.L)
     cone.nt_updated = true
     return
 end

@@ -400,7 +400,8 @@ function get_proxsqr(
     # (prox_sqr < -negtol * length(g)) && return T(Inf) # should be positive
     dg = dual_grad(cone)
     nu = get_nu(cone)
-    return nu / (dot(g, dg) / irtmu)
+    # NOTE s and z are already scaled by irtmu
+    return nu / dot(g, dg)
 
     # return abs(prox_sqr)
 end
@@ -487,8 +488,8 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     old_hess = old_hess_mu / mu
     H = cone.scal_hess.data
     s = cone.point * rtmu
-    z = cone.dual_point
-    ts = -dual_grad(cone)
+    z = cone.dual_point * rtmu
+    ts = -dual_grad(cone) / rtmu
     tz = -grad(cone) / rtmu
 
     nu = get_nu(cone)
@@ -552,8 +553,8 @@ function scal_hess_prod!(
 
     rtmu = sqrt(mu)
     s = cone.point * rtmu
-    z = cone.dual_point
-    ts = -dual_grad(cone)
+    z = cone.dual_point * rtmu
+    ts = -dual_grad(cone) / rtmu
     tz = -grad(cone) / rtmu
 
     nu = get_nu(cone)

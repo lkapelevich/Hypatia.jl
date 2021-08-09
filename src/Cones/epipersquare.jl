@@ -317,7 +317,6 @@ function update_scal_hess(cone::EpiPerSquare{T}, mu::T) where {T}
     end
     H[1, 2] -= 1
     H ./= cone.rt_dist_ratio
-    cone.scal_hess.data ./= sqrt(mu)
 
     cone.scal_hess_updated = true
     return cone.scal_hess
