@@ -256,6 +256,7 @@ function sqrt_hess_prod!(
     return prod
 end
 
+# NOTE worse convergence than no sqrts
 function sqrt_scal_hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,
@@ -264,11 +265,11 @@ function sqrt_scal_hess_prod!(
     ) where T
     @assert cone.hess_updated
     @assert cone.hess_fact_updated
-    s = cone.point * sqrt(mu)
+    s = cone.point
     z = cone.dual_point
     ts = -dual_grad(cone)
-    tz = -grad(cone) / sqrt(mu)
-    old_hess = copy(cone.hess) / mu
+    tz = -grad(cone)
+    old_hess = copy(cone.hess)
 
     nu = get_nu(cone)
     c1 = dot(s, z)
@@ -282,9 +283,9 @@ function sqrt_scal_hess_prod!(
     tol = sqrt(eps(T))
     if (norm(ds) < tol) || (norm(dz) < tol) || (abs(mu * tmu - 1) < tol) ||
         (dot(ts, Hts) - nu * tmu^2 < tol)
-        mul!(prod, fact.U, arr)
+        fact.factors .*= sqrt(mu)
     else
-        fact.factors .*= sqrt(cone_mu / mu)
+        fact.factors .*= sqrt(cone_mu)
         lowrankupdate!(fact, z / sqrt(c1))
         c2 = dot(ds, dz)
         lowrankupdate!(fact, dz / sqrt(c2))

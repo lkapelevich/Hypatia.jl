@@ -120,6 +120,9 @@ function test_oracles(
         @test Cones.sqrt_hess_prod!(prod_mat, prod_mat2, cone) ≈ I atol=tol rtol=tol
         Cones.inv_sqrt_hess_prod!(prod_mat2, Matrix(one(T) * I, dim, dim), cone)
         @test prod_mat2' * prod_mat2 ≈ inv_hess atol=tol rtol=tol
+
+        prod_mat2 = Matrix(Cones.sqrt_scal_hess_prod!(prod_mat, inv_scal_hess, cone, mu)')
+        @test Cones.sqrt_scal_hess_prod!(prod_mat, prod_mat2, cone, mu) ≈ I atol=tol rtol=tol
     end
 
     # test third order deriv oracle
