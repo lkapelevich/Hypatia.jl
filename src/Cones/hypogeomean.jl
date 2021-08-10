@@ -66,6 +66,8 @@ end
 
 get_nu(cone::HypoGeoMean) = cone.dim
 
+use_sqrt_hess_oracles(::Int, cone::HypoGeoMean) = false
+
 function set_initial_point!(
     arr::AbstractVector{T},
     cone::HypoGeoMean{T},

@@ -200,6 +200,79 @@ function update_stepper_points(
     return
 end
 
+function check_cone_points(
+    model::Models.Model{T},
+    stepper::SymmStepper{T};
+    ) where {T <: Real}
+    searcher = stepper.searcher
+    cand = stepper.temp
+    szk = searcher.szk
+    cones = model.cones
+    # min_prox = searcher.min_prox
+    use_max_prox = searcher.use_max_prox
+    # proxsqr_bound = abs2(searcher.prox_bound)
+    β = 0.01
+    # β = sqrt(sqrt(eps(T)))
+
+    taukap = cand.tau[] * cand.kap[]
+    (min(cand.tau[], cand.kap[], taukap) < eps(T)) && return false
+
+    for k in eachindex(cones)
+        szk[k] = dot(cand.primal_views[k], cand.dual_views[k])
+        (szk[k] < eps(T)) && return false
+    end
+    mu = (sum(szk) + taukap) / searcher.nup1
+    (mu < eps(T)) && return false
+
+    taukap_rel = taukap / mu
+    # (taukap_rel < min_prox) && return false
+    # taukap_proxsqr = abs2(taukap_rel - 1)
+    # (taukap_proxsqr > proxsqr_bound) && return false
+    (taukap_rel < β) && return false
+
+
+    # for k in eachindex(cones)
+    #     nu_k = Cones.get_nu(cones[k])
+    #     sz_rel_k = szk[k] / (mu * nu_k)
+    #     if (sz_rel_k < min_prox) || (nu_k * abs2(sz_rel_k - 1) > proxsqr_bound)
+    #         return false
+    #     end
+    # end
+
+    # order the cones by how long it takes to check proximity condition and
+    # iterate in that order, to improve efficiency
+    cone_order = searcher.cone_order
+    sortperm!(cone_order, searcher.cone_times, initialized = true) # stochastic
+
+    irtmu = inv(sqrt(mu))
+    agg_proxsqr = taukap_rel
+    # aggfun = (use_max_prox ? max : +)
+    aggfun = min
+
+    for k in cone_order
+        cone_k = cones[k]
+        start_time = time()
+        Cones.load_point(cone_k, cand.primal_views[k])
+        Cones.load_dual_point(cone_k, cand.dual_views[k])
+        Cones.reset_data(cone_k)
+
+        in_prox_k = false
+        if Cones.is_feas(cone_k) && Cones.is_dual_feas(cone_k) &&
+            Cones.check_numerics(cone_k)
+            proxsqr_k = Cones.get_proxsqr(cone_k, irtmu, use_max_prox)
+            agg_proxsqr = aggfun(agg_proxsqr, proxsqr_k)
+            # in_prox_k = (agg_proxsqr < proxsqr_bound)
+            in_prox_k = (agg_proxsqr > β)
+        end
+        searcher.cone_times[k] = time() - start_time
+        in_prox_k || return false
+    end
+
+    # searcher.prox = sqrt(agg_proxsqr)
+    searcher.prox = agg_proxsqr
+    return true
+end
+
 function start_sched(stepper::SymmStepper, searcher::StepSearcher)
     (stepper.shift_sched <= 0) && return 1
     return max(1, searcher.prev_sched - stepper.shift_sched)

@@ -227,7 +227,8 @@ function get_proxsqr(
     use_max_prox::Bool,
     ) where {T <: Real}
     aggfun = minimum
-    return aggfun(si * zi for (si, zi) in zip(cone.point, cone.dual_point))
+    mu = inv(abs2(irtmu))
+    return aggfun(si * zi / mu for (si, zi) in zip(cone.point, cone.dual_point))
 end
 
 # TODO distance to boundary

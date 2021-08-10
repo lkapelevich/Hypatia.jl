@@ -68,6 +68,8 @@ end
 
 get_nu(cone::HypoPowerMean) = cone.dim
 
+use_sqrt_hess_oracles(::Int, cone::HypoPowerMean) = false
+
 function set_initial_point!(
     arr::AbstractVector{T},
     cone::HypoPowerMean{T},

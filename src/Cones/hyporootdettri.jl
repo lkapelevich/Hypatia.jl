@@ -93,6 +93,8 @@ end
 
 get_nu(cone::HypoRootdetTri) = 1 + cone.d
 
+use_sqrt_hess_oracles(::Int, cone::HypoRootdetTri) = false
+
 function set_initial_point!(
     arr::AbstractVector{T},
     cone::HypoRootdetTri{T, R},

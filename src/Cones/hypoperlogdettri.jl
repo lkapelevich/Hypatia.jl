@@ -92,6 +92,8 @@ end
 
 get_nu(cone::HypoPerLogdetTri) = 2 + cone.d
 
+use_sqrt_hess_oracles(::Int, cone::HypoPerLogdetTri) = false
+
 function set_initial_point!(
     arr::AbstractVector{T},
     cone::HypoPerLogdetTri{T, R},

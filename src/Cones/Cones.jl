@@ -400,8 +400,8 @@ function get_proxsqr(
     # (prox_sqr < -negtol * length(g)) && return T(Inf) # should be positive
     dg = dual_grad(cone)
     nu = get_nu(cone)
-    # NOTE s and z are already scaled by irtmu
-    return nu / dot(g, dg)
+    mu = inv(abs2(irtmu))
+    return nu / dot(g, dg) / mu
 
     # return abs(prox_sqr)
 end
@@ -485,12 +485,12 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
 
     rtmu = sqrt(mu)
     old_hess_mu = copy(cone.hess)
-    old_hess = old_hess_mu / mu
+    old_hess = old_hess_mu
     H = cone.scal_hess.data
-    s = cone.point * rtmu
-    z = cone.dual_point * rtmu
-    ts = -dual_grad(cone) / rtmu
-    tz = -grad(cone) / rtmu
+    s = cone.point
+    z = cone.dual_point
+    ts = -dual_grad(cone)
+    tz = -grad(cone)
 
     nu = get_nu(cone)
     mu = dot(s, z) / nu
@@ -552,10 +552,10 @@ function scal_hess_prod!(
     # prod .= scal_hess(cone, mu) * arr
 
     rtmu = sqrt(mu)
-    s = cone.point * rtmu
-    z = cone.dual_point * rtmu
-    ts = -dual_grad(cone) / rtmu
-    tz = -grad(cone) / rtmu
+    s = cone.point
+    z = cone.dual_point
+    ts = -dual_grad(cone)
+    tz = -grad(cone)
 
     nu = get_nu(cone)
     cone_mu = dot(s, z) / nu
@@ -564,20 +564,29 @@ function scal_hess_prod!(
     ds = s - cone_mu * ts
     dz = z - cone_mu * tz
     Hts = hess_prod!(copy(ts), ts, cone)
-    Hts ./= mu
+    # Hts ./= mu
 
     hess_prod!(prod, arr, cone)
     tol = sqrt(eps(T))
     if (norm(ds) < tol) || (norm(dz) < tol) || (abs(cone_mu * tmu - 1) < tol) ||
         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
-        return prod
+        prod .*= mu
     else
         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
         v2 = Hts - tmu * tz
         M1 = dz * v1'
-        prod .*= cone_mu / mu
-        prod .+= 1 / (2 * cone_mu * nu) * (dz * (v1' * arr) + v1 * (dz' * arr)) -
-            cone_mu / (dot(ts, Hts) - nu * tmu^2) * v2 * (v2' * arr)
+        prod .*= cone_mu
+        tsHts = dot(ts, Hts)
+        @inbounds for j in 1:size(arr, 2)
+            prod_j = view(prod, :, j)
+            arr_j = view(arr, :, j)
+            d1 = dot(v1, arr_j)
+            d2 = dot(dz, arr_j)
+            d3 = dot(v2, arr_j)
+            @. prod_j += d1 / (2 * cone_mu * nu) * dz
+            @. prod_j += d2 / (2 * cone_mu * nu) * v1
+            @. prod_j -= d3 * cone_mu / (tsHts - nu * tmu^2) .* v2
+        end
     end
 
     return prod
