@@ -182,6 +182,7 @@ function setup_data!(cone::Cone{T}) where {T <: Real}
     cone.vec1 = zeros(T, dim)
     cone.vec2 = zeros(T, dim)
     setup_extra_data!(cone)
+    cone.cone_mu = one(T)
     return cone
 end
 
@@ -402,7 +403,7 @@ function get_proxsqr(
     dg = dual_grad(cone)
     nu = get_nu(cone)
     mu = inv(abs2(irtmu))
-    return nu / dot(g, dg) / mu
+    return nu / dot(g, dg)
 
     # return abs(prox_sqr)
 end
@@ -484,35 +485,36 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     hess(cone)
     # @show dot(cone.point, cone.hess, cone.point) - get_nu(cone)
 
-    rtmu = sqrt(mu)
+    # rtmu = sqrt(mu)
     old_hess_mu = copy(cone.hess)
     old_hess = old_hess_mu
     H = cone.scal_hess.data
-    s = cone.point
-    z = cone.dual_point
-    ts = -dual_grad(cone)
-    tz = -grad(cone)
 
     nu = get_nu(cone)
-    mu = dot(s, z) / nu
+    cone_mu = cone.cone_mu
+
+    s = cone.point * sqrt(cone_mu)
+    z = cone.dual_point * sqrt(cone_mu)
+    ts = -dual_grad(cone) / sqrt(cone_mu)
+    tz = -grad(cone) / sqrt(cone_mu)
     tmu = dot(ts, tz) / nu
 
-    ds = s - mu * ts
-    dz = z - mu * tz
-    Hts = old_hess * ts
+    ds = s - cone_mu * ts
+    dz = z - cone_mu * tz
+    Hts = old_hess * ts / cone_mu
     tol = sqrt(eps(T))
     # tol = 1000eps(T)
-    if (norm(ds) < tol) || (norm(dz) < tol) || (abs(mu * tmu - 1) < tol) ||
+    if (norm(ds) < tol) || (norm(dz) < tol) || (abs(cone_mu * tmu - 1) < tol) ||
         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
         # @show "~~ skipping updates ~~"
-        H .= old_hess_mu
+        H .= old_hess_mu * mu / cone_mu
     else
-        v1 = z + mu * tz + dz / (mu * tmu - 1)
+        v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
         v2 = Hts - tmu * tz
         M1 = dz * v1'
         # bf = old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
         #     (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
-        H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
+        H .= old_hess + 1 / (2 * cone_mu * nu) * (M1 + M1') - cone_mu /
             (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
 
         # t = mu * norm(old_hess - tz * tz' / nu - v2 * v2' / (dot(ts, Hts) - nu * tmu^2))
@@ -552,31 +554,31 @@ function scal_hess_prod!(
     ) where T
     # prod .= scal_hess(cone, mu) * arr
 
-    rtmu = sqrt(mu)
-    s = cone.point
-    z = cone.dual_point
-    ts = -dual_grad(cone)
-    tz = -grad(cone)
+    # rtmu = sqrt(mu)
 
     nu = get_nu(cone)
-    cone_mu = dot(s, z) / nu
+    cone_mu = cone.cone_mu
+    s = cone.point * sqrt(cone_mu)
+    z = cone.dual_point * sqrt(cone_mu)
+    ts = -dual_grad(cone) / sqrt(cone_mu)
+    tz = -grad(cone) / sqrt(cone_mu)
     tmu = dot(ts, tz) / nu
 
     ds = s - cone_mu * ts
     dz = z - cone_mu * tz
-    Hts = hess_prod!(copy(ts), ts, cone)
+    Hts = hess_prod!(copy(ts), ts, cone) / cone_mu
     # Hts ./= mu
 
     hess_prod!(prod, arr, cone)
     tol = sqrt(eps(T))
     if (norm(ds) < tol) || (norm(dz) < tol) || (abs(cone_mu * tmu - 1) < tol) ||
         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
-        prod .*= mu
+        prod .*= mu / cone_mu
     else
         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
         v2 = Hts - tmu * tz
         M1 = dz * v1'
-        prod .*= cone_mu
+        # prod .*= cone_mu
         tsHts = dot(ts, Hts)
         @inbounds for j in 1:size(arr, 2)
             prod_j = view(prod, :, j)

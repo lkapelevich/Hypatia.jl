@@ -37,6 +37,8 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
     dual_ϕ::T
     tempw::Vector{T}
 
+    cone_mu::T
+
     function HypoPerLog{T}(
         dim::Int;
         use_dual::Bool = false,

@@ -35,6 +35,8 @@ mutable struct EpiNormEucl{T <: Real} <: Cone{T}
     dual_dist::T
     rt_dist_ratio::T
 
+    cone_mu::T
+
     function EpiNormEucl{T}(dim::Int) where {T <: Real}
         @assert dim >= 2
         cone = new{T}()

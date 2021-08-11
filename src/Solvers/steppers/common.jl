@@ -57,7 +57,7 @@ function update_rhs_predadj(
         # @show typeof(cone_k)
         # @show -Cones.dder3(cone_k, cone_k.point, Cones.hess(cone_k) * cone_k.point) + Cones.grad(cone_k)
         # @assert -Cones.dder3(cone_k, cone_k.point, Cones.hess(cone_k) * cone_k.point) ≈ -Cones.grad(cone_k)
-        dder3_k = Cones.dder3(cone_k, prim_dir_k, dual_dir_k) #/ sqrt(solver.mu)
+        dder3_k = Cones.dder3(cone_k, prim_dir_k, dual_dir_k) / sqrt(cone_k.cone_mu)
         @. rhs.s_views[k] = dder3_k
     end
 
@@ -80,7 +80,9 @@ function update_rhs_cent(
     for (k, cone_k) in enumerate(solver.model.cones)
         duals_k = solver.point.dual_views[k]
         grad_k = Cones.grad(cone_k)
-        @. rhs.s_views[k] = -duals_k - solver.mu * grad_k
+        nu = Cones.get_nu(cone_k)
+        cone_mu = dot(duals_k, solver.point.primal_views[k]) / nu
+        @. rhs.s_views[k] = -duals_k - solver.mu * grad_k / sqrt(cone_mu)
     end
 
     # kap

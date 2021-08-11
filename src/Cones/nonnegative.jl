@@ -28,6 +28,8 @@ mutable struct Nonnegative{T <: Real} <: Cone{T}
     inv_scal_hess::Diagonal{T, Vector{T}}
     inv_hess::Diagonal{T, Vector{T}}
 
+    cone_mu::T
+
     function Nonnegative{T}(dim::Int) where {T <: Real}
         @assert dim >= 1
         cone = new{T}()
@@ -228,7 +230,7 @@ function get_proxsqr(
     ) where {T <: Real}
     aggfun = minimum
     mu = inv(abs2(irtmu))
-    return aggfun(si * zi / mu for (si, zi) in zip(cone.point, cone.dual_point))
+    return aggfun(si * zi for (si, zi) in zip(cone.point, cone.dual_point))
 end
 
 # TODO distance to boundary

@@ -45,6 +45,8 @@ mutable struct PosSemidefTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     dual_fact_mat::Cholesky{R}
     nt_svd
 
+    cone_mu::T
+
     function PosSemidefTri{T, R}(
         dim::Int,
         ) where {T <: Real, R <: RealOrComplex{T}}

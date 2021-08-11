@@ -39,6 +39,8 @@ mutable struct HypoGeoMean{T <: Real} <: Cone{T}
     dual_ϕ::T
     tempw::Vector{T}
 
+    cone_mu::T
+
     function HypoGeoMean{T}(
         dim::Int;
         use_dual::Bool = false,

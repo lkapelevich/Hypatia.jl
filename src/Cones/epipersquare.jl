@@ -42,6 +42,8 @@ mutable struct EpiPerSquare{T <: Real} <: Cone{T}
     sqrt_hess_vec::Vector{T}
     inv_sqrt_hess_vec::Vector{T}
 
+    cone_mu::T
+
     function EpiPerSquare{T}(dim::Int) where {T <: Real}
         @assert dim >= 3
         cone = new{T}()
