@@ -26,17 +26,19 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
     scal_hess_updated::Bool
     inv_scal_hess_updated::Bool
     hess_fact_updated::Bool
+    scal_hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
     scal_hess::Symmetric{T, Matrix{T}}
     inv_scal_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
+    scal_hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
+    scal_hess_fact::Factorization{T}
 
     ϕ::T
     ζ::T
-    dual_ϕ::T
     tempw::Vector{T}
 
     function HypoPowerMean{T}(
@@ -58,7 +60,7 @@ end
 reset_data(cone::HypoPowerMean) = (cone.feas_updated = cone.grad_updated =
     cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
     cone.inv_hess_updated = cone.inv_scal_hess_updated =
-    cone.hess_fact_updated = false)
+    cone.hess_fact_updated = cone.scal_hess_fact_updated = false)
 
 function setup_extra_data!(cone::HypoPowerMean{T}) where {T <: Real}
     cone.dual_grad = zeros(T, cone.dim)
@@ -68,7 +70,7 @@ end
 
 get_nu(cone::HypoPowerMean) = cone.dim
 
-use_sqrt_hess_oracles(::Int, cone::HypoPowerMean) = false
+# use_sqrt_hess_oracles(::Int, cone::HypoPowerMean) = false
 
 function set_initial_point!(
     arr::AbstractVector{T},
@@ -110,8 +112,8 @@ function is_dual_feas(cone::HypoPowerMean{T}) where {T <: Real}
 
     if u < -eps(T) && all(>(eps(T)), w)
         sumlog = sum(α_i * log(w_i / α_i) for (α_i, w_i) in zip(α, w))
-        cone.dual_ϕ = exp(sumlog)
-        return (cone.dual_ϕ + u > eps(T))
+        dual_ϕ = exp(sumlog)
+        return (dual_ϕ + u > eps(T))
     end
 
     return false
@@ -137,14 +139,14 @@ function update_dual_grad(cone::HypoPowerMean)
     d = length(w)
     dg = cone.dual_grad
     α = cone.α
-    dual_ϕ = cone.dual_ϕ
+    sumlog = sum(α_i * log(w_i) for (α_i, w_i) in zip(α, w))
 
-    fval(y) = sum(ai * log(y - u * ai) for ai in α) - log(dual_ϕ)
+    fval(y) = sum(ai * log(y - u * ai) for ai in α) - sumlog
     fgrad(y) = sum(ai / (y - u * ai) for ai in α)
     hess_abs(y) = sum(ai / (y - u * ai)^2 for ai in α)
 
     lower_bound = 0
-    upper_bound = dual_ϕ + u / d
+    upper_bound = exp(sumlog) + u / d
 
     C = sum(α.^(-2)) / u^2 /
         (2 * upper_bound * sum(inv.(1 .- u * α * upper_bound)))
