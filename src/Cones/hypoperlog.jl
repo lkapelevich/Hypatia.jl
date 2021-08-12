@@ -24,13 +24,16 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
     inv_scal_hess_updated::Bool
     inv_hess_updated::Bool
     hess_fact_updated::Bool
+    scal_hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
     scal_hess::Symmetric{T, Matrix{T}}
     inv_scal_hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
+    scal_hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
+    scal_hess_fact::Factorization{T}
 
     ϕ::T
     ζ::T
@@ -52,7 +55,7 @@ end
 reset_data(cone::HypoPerLog) = (cone.feas_updated = cone.grad_updated =
     cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
     cone.inv_hess_updated = cone.inv_scal_hess_updated =
-    cone.hess_fact_updated = false)
+    cone.hess_fact_updated = cone.scal_hess_fact_updated = false)
 
 function setup_extra_data!(cone::HypoPerLog{T}) where {T <: Real}
     d = cone.dim - 2
@@ -63,7 +66,7 @@ end
 
 get_nu(cone::HypoPerLog) = cone.dim
 
-use_sqrt_hess_oracles(::Int, cone::HypoPerLog) = false
+use_sqrt_scal_hess_oracles(::Int, cone::HypoPerLog{T}, ::T) where {T <: Real} = false
 
 function set_initial_point!(arr::AbstractVector, cone::HypoPerLog)
     (arr[1], arr[2], w) = get_central_ray_hypoperlog(cone.dim - 2)

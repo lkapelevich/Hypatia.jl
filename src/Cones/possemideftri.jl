@@ -41,6 +41,7 @@ mutable struct PosSemidefTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     mat4::Matrix{R}
     inv_mat::Matrix{R}
     inv_dual_mat::Matrix{R}
+    scalmat_sqrti::Matrix{R}
     fact_mat::Cholesky{R}
     dual_fact_mat::Cholesky{R}
     nt_svd
@@ -65,9 +66,8 @@ reset_data(cone::PosSemidefTri) = (cone.feas_updated = cone.dual_feas_updated =
     cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
     cone.inv_hess_updated = cone.inv_scal_hess_updated = cone.nt_updated = false)
 
-# use_sqrt_hess_oracles(::Int, cone::PosSemidefTri) = true
-# TODO sqrt scal hess
-use_sqrt_hess_oracles(::Int, cone::PosSemidefTri) = false
+use_sqrt_hess_oracles(::Int, cone::PosSemidefTri) = true
+use_sqrt_scal_hess_oracles(::Int, cone::PosSemidefTri{T}, ::T) where {T <: Real} = true
 
 function setup_extra_data!(
     cone::PosSemidefTri{T, R},
@@ -80,6 +80,7 @@ function setup_extra_data!(
     cone.mat4 = zero(cone.mat)
     cone.inv_mat = zero(cone.mat)
     cone.inv_dual_mat = zero(cone.mat)
+    cone.scalmat_sqrti = zero(cone.mat)
     return cone
 end
 
@@ -147,7 +148,8 @@ end
 
 function update_nt(cone::PosSemidefTri{T, R},
     mu::T) where {T <: Real, R <: RealOrComplex{T}}
-    cone.nt_svd = svd(cone.dual_fact_mat.U * cone.fact_mat.L)
+    (U, lambda, V) = cone.nt_svd = svd(cone.dual_fact_mat.U * cone.fact_mat.L)
+    cone.scalmat_sqrti = Diagonal(sqrt.(lambda)) \ (U' * cone.dual_fact_mat.U)
     cone.nt_updated = true
     return
 end
@@ -214,7 +216,7 @@ function scal_hess_prod!(
     cone.nt_updated || update_nt(cone, mu)
 
     (U, lambda, V) = cone.nt_svd
-    scalmat_sqrti = Diagonal(sqrt.(lambda)) \ (U' * cone.dual_fact_mat.U)
+    scalmat_sqrti = cone.scalmat_sqrti
     w = Hermitian(scalmat_sqrti' * scalmat_sqrti, :U)
 
     @inbounds for i in 1:size(arr, 2)
@@ -303,27 +305,33 @@ function inv_sqrt_hess_prod!(
     return prod
 end
 
-# function inv_sqrt_scal_hess_prod!(
-#     prod::AbstractVecOrMat{T},
-#     arr::AbstractVecOrMat{T},
-#     cone::PosSemidefTri{T, R},
-#     mu::T
-#     ) where {T <: Real, R <: RealOrComplex{T}}
-#     @assert cone.feas_updated && cone.dual_feas_updated
-#     cone.nt_updated || update_nt(cone, mu)
-#
-#     (U, lambda, V) = cone.nt_svd
-#     scalmat_sqrt = cone.dual_fact_mat.U \ (U * Diagonal(sqrt.(lambda)))
-#
-#     @inbounds for i in 1:size(arr, 2)
-#         svec_to_smat!(cone.mat4, view(arr, :, i), cone.rt2)
-#         copytri!(cone.mat4, 'U', true)
-#         temp = scalmat_sqrt' * cone.mat4 * scalmat_sqrt
-#         smat_to_svec!(view(prod, :, i), temp, cone.rt2)
-#     end
-#
-#     return prod
-# end
+function sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::PosSemidefTri{T},
+    mu::T,
+    ) where {T <: Real}
+    @assert cone.is_feas
+    cone.nt_updated || update_nt(cone, mu)
+    cone.scalmat_sqrti = cone.scalmat_sqrti
+
+    @inbounds for i in 1:size(arr, 2)
+        svec_to_smat!(cone.mat3, view(arr, :, i), cone.rt2)
+        mul!(cone.mat4, Hermitian(cone.mat3, :U), cone.scalmat_sqrti')
+        mul!(cone.mat3, cone.scalmat_sqrti, cone.mat4)
+        smat_to_svec!(view(prod, :, i), cone.mat3, cone.rt2)
+    end
+    return prod
+end
+
+function inv_sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::PosSemidefTri{T, R},
+    mu::T
+    ) where {T <: Real, R <: RealOrComplex{T}}
+    error()
+end
 
 function dder3(cone::PosSemidefTri, dir::AbstractVector)
     @assert cone.grad_updated

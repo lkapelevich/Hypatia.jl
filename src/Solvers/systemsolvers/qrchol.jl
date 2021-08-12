@@ -214,12 +214,11 @@ function update_lhs_fact(
 
     nmp = size(lhs, 1)
     @inbounds for k in eachindex(cones)
-        use_sqrt_hess_cones[k] = Cones.use_sqrt_hess_oracles(nmp, cones[k])
+        use_sqrt_hess_cones[k] = Cones.use_sqrt_scal_hess_oracles(nmp, cones[k], solver.mu)
     end
 
     # sqrt cones
-    fill!(lhs, 0)
-    # if any(use_sqrt_hess_cones)
+    if any(use_sqrt_hess_cones)
         idx = 1
         @inbounds for k in eachindex(cones)
             use_sqrt_hess_cones[k] || continue
@@ -227,24 +226,17 @@ function update_lhs_fact(
             arr_k = GQ2_k[k]
             q_k = size(arr_k, 1)
             @views prod_k = HGQ2[idx:(idx + q_k - 1), :]
-            try
-                if Cones.use_dual_barrier(cone_k)
-                    Cones.inv_sqrt_scal_hess_prod!(prod_k, arr_k, cone_k, solver.mu)
-                else
-                    Cones.sqrt_scal_hess_prod!(prod_k, arr_k, cone_k, solver.mu)
-                end
-            catch e
-                @warn "sqrt failed"
-                use_sqrt_hess_cones[k] = false
-                idx += q_k
-                continue
+            if Cones.use_dual_barrier(cone_k)
+                Cones.inv_sqrt_scal_hess_prod!(prod_k, arr_k, cone_k, solver.mu)
+            else
+                Cones.sqrt_scal_hess_prod!(prod_k, arr_k, cone_k, solver.mu)
             end
             idx += q_k
         end
         @views outer_prod!(HGQ2[1:(idx - 1), :], lhs, true, false)
-    # else
-    #     fill!(lhs, 0)
-    # end
+    else
+        fill!(lhs, 0)
+    end
 
     # not sqrt cones
     @inbounds for k in eachindex(cones)

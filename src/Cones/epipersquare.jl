@@ -12,6 +12,7 @@ mutable struct EpiPerSquare{T <: Real} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     nt_point::Vector{T}
+    nt_point_sqrt::Vector{T}
     grad::Vector{T}
     dual_grad::Vector{T}
     dder3::Vector{T}
@@ -39,6 +40,7 @@ mutable struct EpiPerSquare{T <: Real} <: Cone{T}
     rtdist::T
     denom::T
     rt_dist_ratio::T
+    rt_rt_dist_ratio::T
     sqrt_hess_vec::Vector{T}
     inv_sqrt_hess_vec::Vector{T}
 
@@ -48,6 +50,7 @@ mutable struct EpiPerSquare{T <: Real} <: Cone{T}
         cone.dim = dim
         cone.dual_grad = zeros(T, dim)
         cone.nt_point = zeros(T, dim)
+        cone.nt_point_sqrt = zeros(T, dim)
         return cone
     end
 end
@@ -60,9 +63,8 @@ reset_data(cone::EpiPerSquare) = (cone.feas_updated = cone.dual_feas_updated =
     cone.scal_hess_updated = cone.inv_scal_hess_updated =
     cone.inv_sqrt_hess_prod_updated = false)
 
-# use_sqrt_hess_oracles(::Int, cone::EpiPerSquare) = true
-# TODO sqrt scal oracles
-use_sqrt_hess_oracles(::Int, cone::EpiPerSquare) = false
+use_sqrt_hess_oracles(::Int, cone::EpiPerSquare{T}) where {T <: Real} = true
+use_sqrt_scal_hess_oracles(::Int, cone::EpiPerSquare{T}, ::T) where {T <: Real} = true
 
 get_nu(cone::EpiPerSquare) = 2
 
@@ -182,6 +184,17 @@ function hess_prod!(
     return prod
 end
 
+function scal_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::EpiPerSquare{T},
+    mu::T,
+    ) where {T <: Real}
+    cone.nt_updated || update_nt(cone, mu)
+    rot_hyperbolic_householder(prod, arr, cone.nt_point, cone.rt_dist_ratio, true)
+    return prod
+end
+
 function inv_hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,
@@ -197,6 +210,17 @@ function inv_hess_prod!(
     @. @views prod[2, :] -= cone.dist * arr[1, :]
     @. @views prod[3:end, :] += cone.dist * arr[3:end, :]
 
+    return prod
+end
+
+function inv_scal_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::EpiPerSquare{T},
+    mu::T,
+    ) where {T <: Real}
+    cone.nt_updated || update_nt(cone, mu)
+    rot_hyperbolic_householder(prod, arr, cone.nt_point, cone.rt_dist_ratio, false)
     return prod
 end
 
@@ -257,6 +281,17 @@ function sqrt_hess_prod!(
     return prod
 end
 
+function sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::EpiPerSquare{T},
+    mu::T,
+    ) where {T <: Real}
+    cone.nt_updated || update_nt(cone, mu)
+    rot_hyperbolic_householder(prod, arr, cone.nt_point_sqrt, cone.rt_rt_dist_ratio, true)
+    return prod
+end
+
 function inv_sqrt_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
@@ -279,10 +314,11 @@ function inv_sqrt_hess_prod!(
     return prod
 end
 
-function update_nt(cone::EpiPerSquare)
+function update_nt(cone::EpiPerSquare{T}) where {T <: Real}
     @assert cone.is_feas
     @assert cone.dual_feas_updated
     nt_point = cone.nt_point
+    nt_point_sqrt = cone.nt_point_sqrt
 
     normalized_point = cone.point ./ sqrt(cone.dist * 2)
     normalized_dual_point = cone.dual_point ./ sqrt(cone.dual_dist * 2)
@@ -293,10 +329,13 @@ function update_nt(cone::EpiPerSquare)
     @. @views nt_point[3:end] = -normalized_point[3:end] + normalized_dual_point[3:end]
     nt_point ./= 2 * gamma
 
-    nt_point_sqrt = copy(nt_point)
-    nt_point_sqrt[1] += 1
-    nt_point_sqrt ./= sqrt(2 * nt_point_sqrt[1])
+    copyto!(nt_point_sqrt, nt_point)
+    nt_point_sqrt[1] += inv(sqrt(2))
+    nt_point_sqrt[2] += inv(sqrt(2))
+    nt_point_sqrt ./= sqrt(2 + (nt_point[1] + nt_point[2]) * sqrt(2))
+
     cone.rt_dist_ratio = sqrt(cone.dist / cone.dual_dist)
+    cone.rt_rt_dist_ratio = sqrt(cone.rt_dist_ratio)
 
     cone.nt_updated = true
 
@@ -305,7 +344,6 @@ end
 
 function update_scal_hess(cone::EpiPerSquare{T}, mu::T) where {T}
     @assert cone.grad_updated
-    @assert cone.is_feas
     cone.nt_updated || update_nt(cone)
     isdefined(cone, :scal_hess) || alloc_scal_hess!(cone)
     H = cone.scal_hess.data
@@ -376,3 +414,32 @@ end
 #     end
 #     return barrier
 # end
+
+function rot_hyperbolic_householder(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    v::AbstractVector{T},
+    fact::T,
+    use_inv::Bool,
+    ) where {T <: Real}
+    for j in 1:size(prod, 2)
+        if use_inv
+            @views pa = 2 * dot(v, arr[:, j])
+            @. @views prod[:, j] = pa * v
+        else
+            @views pa = 2 * (v[1] * arr[2] + v[2] * arr[1] - dot(v[3:end], arr[3:end, j]))
+            prod[1, j] = pa * v[2]
+            prod[2, j] = pa * v[1]
+            @. @views prod[3:end, j] = -pa * v[3:end]
+        end
+    end
+    @. prod[1, :] -= arr[2, :]
+    @. prod[2, :] -= arr[1, :]
+    @. prod[3:end, :] += arr[3:end, :]
+    if use_inv
+        prod ./= fact
+    else
+        prod .*= fact
+    end
+    return prod
+end

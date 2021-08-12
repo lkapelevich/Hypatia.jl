@@ -245,6 +245,14 @@ function use_sqrt_hess_oracles(arr_dim::Int, cone::Cone)
     return (cone.hess_fact isa Cholesky)
 end
 
+function use_sqrt_scal_hess_oracles(arr_dim::Int, cone::Cone{T}, mu::T) where {T <: Real}
+    if !cone.scal_hess_fact_updated
+        (arr_dim < dimension(cone)) && return false # array is small
+        update_scal_hess_fact(cone, mu) || return false
+    end
+    return (cone.scal_hess_fact isa Cholesky)
+end
+
 # only use if use_sqrt_hess_oracles is true
 function sqrt_hess_prod!(
     prod::AbstractVecOrMat,
@@ -263,38 +271,8 @@ function sqrt_scal_hess_prod!(
     cone::Cone{T},
     mu::T,
     ) where T
-    @assert cone.hess_updated
-    @assert cone.hess_fact_updated
-    s = cone.point
-    z = cone.dual_point
-    ts = -dual_grad(cone)
-    tz = -grad(cone)
-    old_hess = copy(cone.hess)
-
-    nu = get_nu(cone)
-    c1 = dot(s, z)
-    cone_mu = c1 / nu
-    tmu = dot(ts, tz) / nu
-    ds = s - cone_mu * ts
-    dz = z - cone_mu * tz
-    Hts = old_hess * ts
-
-    fact = cone.hess_fact
-    tol = sqrt(eps(T))
-    if (norm(ds) < tol) || (norm(dz) < tol) || (abs(mu * tmu - 1) < tol) ||
-        (dot(ts, Hts) - nu * tmu^2 < tol)
-        fact.factors .*= sqrt(mu)
-    else
-        fact.factors .*= sqrt(cone_mu)
-        lowrankupdate!(fact, z / sqrt(c1))
-        c2 = dot(ds, dz)
-        lowrankupdate!(fact, dz / sqrt(c2))
-        lowrankdowndate!(fact, tz * sqrt(cone_mu / nu))
-        c5 = cone_mu / (dot(ts, Hts) - nu * tmu^2)
-        v1 = Hts - tmu * tz
-        lowrankdowndate!(fact, v1 * sqrt(c5))
-    end
-    mul!(prod, fact.U, arr)
+    @assert cone.scal_hess_fact_updated
+    mul!(prod, cone.scal_hess_fact.U, arr)
 
     return prod
 end
@@ -342,6 +320,61 @@ function update_hess_fact(cone::Cone{T}) where {T <: Real}
 
     cone.hess_fact_updated = true
     return issuccess(cone.hess_fact)
+end
+
+function update_scal_hess_fact(cone::Cone{T}, mu::T) where {T <: Real}
+    cone.scal_hess_fact_updated && return true
+    cone.scal_hess_fact_updated = true
+    if update_hess_fact(cone) && cone.hess_fact isa Cholesky
+        s = cone.point
+        z = cone.dual_point
+        ts = -dual_grad(cone)
+        tz = -grad(cone)
+        old_hess = copy(cone.hess)
+
+        nu = get_nu(cone)
+        c1 = dot(s, z)
+        cone_mu = c1 / nu
+        #
+        tmu = dot(ts, tz) / nu
+        @assert dot(s, tz) ≈ nu
+        @assert dot(z, ts) ≈ nu
+        @assert cone_mu * tmu >= 1
+        #
+        ds = s - cone_mu * ts
+        dz = z - cone_mu * tz
+        Hts = old_hess * ts
+
+        fact = cone.scal_hess_fact = copy(cone.hess_fact)
+        tol = sqrt(eps(T))
+        if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
+            (dot(ts, Hts) - nu * tmu^2 < tol)
+            fact.factors .*= sqrt(mu)
+            return true
+        else
+            fact.factors .*= sqrt(cone_mu)
+            lowrankupdate!(fact, z / sqrt(c1))
+            c2 = dot(ds, dz)
+            lowrankupdate!(fact, dz / sqrt(c2))
+            try
+                lowrankdowndate!(fact, tz * sqrt(cone_mu / nu))
+                c5 = cone_mu / (dot(ts, Hts) - nu * tmu^2)
+                v1 = Hts - tmu * tz
+                lowrankdowndate!(fact, v1 * sqrt(c5))
+                return true
+            catch _
+                @warn "downdate failed"
+            end
+        end
+    end
+    scal_hess(cone, mu)
+    if !isdefined(cone, :scal_hess_fact_mat)
+        cone.scal_hess_fact_mat = zero(cone.scal_hess)
+    end
+    cone.scal_hess_fact = posdef_fact_copy!(cone.scal_hess_fact_mat, cone.scal_hess, false)
+    # cone.scal_hess_fact = bunchkaufman(scal_hess(cone, mu))
+
+    return issuccess(cone.scal_hess_fact)
 end
 
 function update_inv_hess(cone::Cone)
@@ -496,13 +529,14 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     nu = get_nu(cone)
     mu = dot(s, z) / nu
     tmu = dot(ts, tz) / nu
+    @assert mu * tmu >= 1
 
     ds = s - mu * ts
     dz = z - mu * tz
     Hts = old_hess * ts
     tol = sqrt(eps(T))
     # tol = 1000eps(T)
-    if (norm(ds) < tol) || (norm(dz) < tol) || (abs(mu * tmu - 1) < tol) ||
+    if (norm(ds) < tol) || (norm(dz) < tol) || (mu * tmu - 1 < tol) ||
         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
         # @show "~~ skipping updates ~~"
         H .= old_hess_mu
@@ -549,6 +583,7 @@ function scal_hess_prod!(
     arr::AbstractVecOrMat,
     cone::Cone{T},
     mu::T,
+    slow::Bool = false,
     ) where T
     # prod .= scal_hess(cone, mu) * arr
 
@@ -564,12 +599,17 @@ function scal_hess_prod!(
 
     ds = s - cone_mu * ts
     dz = z - cone_mu * tz
-    Hts = hess_prod!(copy(ts), ts, cone)
+    if slow
+        Hts = hess_prod_slow!(copy(ts), ts, cone)
+        hess_prod_slow!(prod, arr, cone)
+    else
+        Hts = hess_prod!(copy(ts), ts, cone)
+        hess_prod!(prod, arr, cone)
+    end
     # Hts ./= mu
 
-    hess_prod!(prod, arr, cone)
     tol = sqrt(eps(T))
-    if (norm(ds) < tol) || (norm(dz) < tol) || (abs(cone_mu * tmu - 1) < tol) ||
+    if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
         prod .*= mu
     else
@@ -600,7 +640,8 @@ function inv_scal_hess_prod!(
     mu::T,
     ) where T
     # prod .= cholesky(scal_hess(cone, mu)) \ arr
-    prod .= scal_hess(cone, mu) \ arr
+    update_scal_hess_fact(cone, mu)
+    ldiv!(prod, cone.scal_hess_fact, arr)
     return prod
 end
 

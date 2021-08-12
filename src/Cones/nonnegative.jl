@@ -45,6 +45,8 @@ reset_data(cone::Nonnegative) = (cone.feas_updated = cone.grad_updated =
 
 use_sqrt_hess_oracles(::Int, cone::Nonnegative) = true
 
+use_sqrt_scal_hess_oracles(::Int, cone::Nonnegative{T}, ::T) where {T <: Real} = true
+
 get_nu(cone::Nonnegative) = cone.dim
 
 set_initial_point!(arr::AbstractVector, cone::Nonnegative) = (arr .= 1)
