@@ -314,7 +314,7 @@ function inv_sqrt_hess_prod!(
     return prod
 end
 
-function update_nt(cone::EpiPerSquare{T}) where {T <: Real}
+function update_nt(cone::EpiPerSquare{T}, mu::T) where {T <: Real}
     @assert cone.is_feas
     @assert cone.dual_feas_updated
     nt_point = cone.nt_point
@@ -344,7 +344,7 @@ end
 
 function update_scal_hess(cone::EpiPerSquare{T}, mu::T) where {T}
     @assert cone.grad_updated
-    cone.nt_updated || update_nt(cone)
+    cone.nt_updated || update_nt(cone, mu)
     isdefined(cone, :scal_hess) || alloc_scal_hess!(cone)
     H = cone.scal_hess.data
     nt_point = cone.nt_point
