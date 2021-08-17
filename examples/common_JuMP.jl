@@ -33,6 +33,42 @@ MOIU.@model(ExpPSD,
     true,
     )
 
+# polyhedral cones not updated yet
+MOIU.@model(PSDLog,
+    (),
+    (MOI.EqualTo, MOI.GreaterThan, MOI.LessThan,),
+    (MOI.Reals, MOI.Zeros, MOI.Nonnegatives, MOI.Nonpositives,
+    # MOI.ExponentialCone,
+    MOI.PositiveSemidefiniteConeTriangle,
+    Hypatia.HypoPerLogCone,
+    MOI.LogDetConeTriangle,
+    ),
+    (),
+    (),
+    (MOI.ScalarAffineFunction,),
+    (MOI.VectorOfVariables,),
+    (MOI.VectorAffineFunction,),
+    true,
+    )
+
+MOIU.@model(SOCPSDLog,
+    (),
+    (MOI.EqualTo, MOI.GreaterThan, MOI.LessThan,),
+    (MOI.Reals, MOI.Zeros, MOI.Nonnegatives, MOI.Nonpositives,
+    MOI.SecondOrderCone, MOI.RotatedSecondOrderCone,
+    # MOI.ExponentialCone,
+    MOI.PositiveSemidefiniteConeTriangle,
+    Hypatia.HypoPerLogCone,
+    MOI.LogDetConeTriangle,
+    ),
+    (),
+    (),
+    (MOI.ScalarAffineFunction,),
+    (MOI.VectorOfVariables,),
+    (MOI.VectorAffineFunction,),
+    true,
+    )
+
 abstract type ExampleInstanceJuMP{T <: Real} <: ExampleInstance{T} end
 
 # fallback: just check optimal status
