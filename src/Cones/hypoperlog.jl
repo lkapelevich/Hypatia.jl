@@ -335,94 +335,6 @@ function bar(::HypoPerLog)
     return barrier
 end
 
-# function dder3(
-#     cone::HypoPerLog{T},
-#     pdir::AbstractVector{T},
-#     ddir::AbstractVector{T},
-#     ) where {T <: Real}
-#     @assert cone.grad_updated
-#     dder3 = cone.dder3
-#     d = cone.dim - 2
-#     d1 = inv_hess_prod!(zeros(T, d + 2), ddir, cone)
-#
-#     function bar(uvw)
-#         @views (u, v, w) = (uvw[1], uvw[2], uvw[3:end])
-#         lw = sum(log, w)
-#         return -log((lw - d * log(v)) * v - u) - lw - log(v)
-#     end
-#     bardir(point, s, t) = bar(point + s * d1 + t * pdir)
-#     true_ddir = ForwardDiff.gradient(
-#         s2 -> ForwardDiff.derivative(
-#             s -> ForwardDiff.derivative(
-#                 t -> bardir(s2, s, t),
-#                 0),
-#             0),
-#         cone.point) / 2
-#
-#     v = cone.point[2]
-#     @views w = cone.point[3:end]
-#     wi = inv.(w)
-#     ζ = cone.ζ
-#     τ = cone.ϕ - d
-#     σ = ζ + v * (1 + d)
-#     Tuuu = 2 / ζ^3
-#     Tuuv = -2 * τ / ζ^3
-#     Tuuw = -2 * v / ζ^3 ./ w
-#     Tuvv = 2 * τ^2 / ζ^3 + d / ζ^2 / v
-#     Tuvw = 2 * τ * v ./ (ζ^3 * w) - wi / ζ^2
-#     Tuww_c = 2 * v^2 / ζ^3
-#     Tuww_D = v / ζ^2 ./ w.^2
-#     Tvvv = -2 * τ^3 / ζ^3 - 3 * τ * d / ζ^2 / v - d / ζ / v^2 - 2 / v^3
-#     Tvvw = -2 * τ^2 * v / ζ^3 ./ w + 2 * τ / ζ^2 ./ w - d / ζ^2 ./ w
-#     Tvww_c = 2 * v / ζ^2 - 2 * v^2 * τ / ζ^3
-#     Tvww_D = -τ * v ./ w.^2 / ζ^2 + 1 ./ w.^2 / ζ
-#
-#     Tuvw_p = dot(Tuvw, pdir[3:end])
-#     Tuvw_d = dot(Tuvw, d1[3:end])
-#     dp11 = d1[1] * pdir[1]
-#     dp12 = d1[1] * pdir[2] + d1[2] * pdir[1]
-#     dp22 = d1[2] * pdir[2]
-#     dp33 = d1[3:end] .* pdir[3:end]
-#     wip = dot(wi, pdir[3:end])
-#     wid = dot(wi, d1[3:end])
-#
-#     dder3[1] = Tuuu * dp11 + Tuuv * dp12 + Tuvv * dp22 +
-#         pdir[1] * dot(Tuuw, d1[3:end]) + d1[1] * dot(Tuuw, pdir[3:end]) +
-#         pdir[2] * Tuvw_d + d1[2] * Tuvw_p +
-#         dot(Tuww_D, dp33) +
-#         Tuww_c * wid * wip
-#     dder3[2] = Tuuv * dp11 + Tuvv * dp12 + Tvvv * dp22 +
-#         pdir[1] * Tuvw_d + d1[1] * Tuvw_p +
-#         pdir[2] * dot(Tvvw, d1[3:end]) + d1[2] * dot(Tvvw, pdir[3:end]) +
-#         dot(Tvww_D, dp33) +
-#         Tvww_c * wid * wip
-#     dder3[3:end] .= Tuuw * dp11 + Tuvw * dp12 + Tvvw * dp22 +
-#         Tuww_c * (d1[1] * wip + pdir[1] * wid) ./ w + Tuww_D .* (pdir[1] * d1[3:end] + d1[1] * pdir[3:end]) +
-#         Tvww_c * (d1[2] * wip + pdir[2] * wid) ./ w + Tvww_D .* (pdir[2] * d1[3:end] + d1[2] * pdir[3:end]) +
-#         -2 * v^3 ./ ζ^3 * wip * wid ./ w +
-#         -abs2(v / ζ) * ((wid * pdir[3:end] + wip * d1[3:end]) ./ w .+ sum(pdir[3:end] .* d1[3:end] ./ w.^2)) ./ w +
-#          (-2 * v / ζ - 2) ./ w.^3 .* dp33
-#
-#      dder3[1] =
-#         2 / ζ^3 * d1[1] * pdir[1] +
-#         (-2 * τ) * (d1[1] * pdir[2] + d1[2] * pdir[1]) / ζ^3 +
-#         (2 * τ^2 / ζ^3 + d / ζ^2 / v) * d1[2] * pdir[2] +
-#         pdir[1] * dot(-2 * v ./ w, d1[3:end]) / ζ^3 +
-#         d1[1] * dot(-2 * v ./ w, pdir[3:end]) / ζ^3 +
-#         pdir[2] * dot(2 * τ * v ./ (ζ^3 * w), d1[3:end]) +
-#         pdir[2] * dot(-wi / ζ^2, d1[3:end]) +
-#         d1[2] * dot(2 * τ * v ./ (ζ^3 * w), pdir[3:end]) +
-#         d1[2] * dot(-wi / ζ^2, pdir[3:end]) +
-#         dot(v / ζ^2 ./ w.^2, d1[3:end] .* pdir[3:end]) +
-#         2 * v^2 / ζ^3 * wid * wip
-#
-#     dder3 ./= 2
-#
-#     @show true_ddir ./ dder3
-#
-#     return dder3
-# end
-
 function dder3(
     cone::HypoPerLog{T},
     pdir::AbstractVector{T},
@@ -452,18 +364,17 @@ function dder3(
     ξ_2 = (-y / v * w + z) / v
     χ_1 = -p + q * σ + v * sum(rwi)
     χ_2 = -x + y * σ + v * sum(zwi)
-    ζ_χ_q = inv(ζ) * χ_1 - q / v
-    ζ_χ_y = inv(ζ) * χ_2 - y / v
-    ∇2h = -Diagonal(v^2 ./ w.^2)
-    ∇3h = [(i == j == k ? 2 * v^3 / w[i]^3 : 0) for i in 1:d, j in 1:d, k in 1:d]
+    ζ_χ_q = χ_1 / ζ - q / v
+    ζ_χ_y = χ_2 / ζ - y / v
+    wiv_ξ_1 = v * ξ_1 ./ w
+    wiv_ξ_2 = v * ξ_2 ./ w
 
-    c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * v * dot(ξ_1, ∇2h, ξ_2)
+    c1 = (2 * χ_1 * χ_2 / ζ - v * sum(wiv_ξ_1 .* wiv_ξ_2)) / ζ^2
 
     dder3[1] = -c1
-    τ = -ζ^(-1) * -∇2h * (ξ_1 * ζ_χ_y + ξ_2 * ζ_χ_q) +
-        -ζ^(-1) * [dot(ξ_1, -∇3h[i, :, :], ξ_2) for i in 1:d]
-    dder3[2] = c1 * σ - dot(τ, w / v) - 2 * v^(-3) * q * y - ζ^(-1) * dot(ξ_1, ∇2h, ξ_2)
-    dder3[3:end] .= v ./ w * c1 + τ - 2 * (r .* z ./ w.^3) # TODO simplify to use ddir and not z
+    τ = (-wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + 2 * wiv_ξ_1 .* wiv_ξ_2) * v ./ w / ζ
+    dder3[2] = c1 * σ - dot(τ, w / v) - 2 * q * y / v^3 + dot(wiv_ξ_1, wiv_ξ_2) / ζ
+    dder3[3:end] .= c1 * v ./ w + τ - 2 * r .* z ./ w.^3
 
     # function bar(uvw)
     #     @views (u, v, w) = (uvw[1], uvw[2], uvw[3:end])
@@ -478,13 +389,10 @@ function dder3(
     #             0),
     #         0),
     #     cone.point) / 2
-    #
-    #
-    #
+
     dder3 ./= 2
 
     # @show true_dder3 ./ dder3
-    # @show true_dder3 * 2
 
     return dder3
 
