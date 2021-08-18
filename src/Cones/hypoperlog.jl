@@ -360,28 +360,25 @@ function dder3(
     rwi = r ./ w
     zwi = z ./ w
 
-    ξ_1 = (-q / v * w + r) / v
-    ξ_2 = (-y / v * w + z) / v
     χ_1 = -p + q * σ + v * sum(rwi)
     χ_2 = -x + y * σ + v * sum(zwi)
     ζ_χ_q = χ_1 / ζ - q / v
     ζ_χ_y = χ_2 / ζ - y / v
-    wiv_ξ_1 = v * ξ_1 ./ w
-    wiv_ξ_2 = v * ξ_2 ./ w
+    wiv_ξ_1 = -q / v .+ r ./ w
+    wiv_ξ_2 = -y / v .+ z ./ w
+    wiv_ξ_dot = dot(wiv_ξ_1, wiv_ξ_2)
 
-    c1 = (2 * χ_1 * χ_2 / ζ - v * sum(wiv_ξ_1 .* wiv_ξ_2)) / ζ^2
+    c1 = (2 * χ_1 * χ_2 / ζ - v * wiv_ξ_dot) / ζ^2
 
     dder3[1] = -c1
-    τ = (-wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + 2 * wiv_ξ_1 .* wiv_ξ_2) * v ./ w / ζ
-    dder3[2] = c1 * σ - dot(τ, w / v) - 2 * q * y / v^3 + dot(wiv_ξ_1, wiv_ξ_2) / ζ
-    dder3[3:end] .= c1 * v ./ w + τ - 2 * r .* z ./ w.^3
+    τwvi = (-wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + 2 * wiv_ξ_1 .* wiv_ξ_2) / ζ
+    dder3[2] = c1 * σ - sum(τwvi) - 2 * q * y / v^3 + wiv_ξ_dot / ζ
+    dder3[3:end] .= c1 * v ./ w + τwvi * v ./ w - 2 * r .* z ./ w.^3
 
-    # function bar(uvw)
-    #     @views (u, v, w) = (uvw[1], uvw[2], uvw[3:end])
-    #     lw = sum(log, w)
-    #     return -log((lw - d * log(v)) * v - u) - lw - log(v)
-    # end
-    # bardir(point, s, t) = bar(point + s * d1 + t * pdir)
+    dder3 ./= 2
+
+    # barrier = bar(cone)
+    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
     # true_dder3 = ForwardDiff.gradient(
     #     s2 -> ForwardDiff.derivative(
     #         s -> ForwardDiff.derivative(
@@ -389,9 +386,7 @@ function dder3(
     #             0),
     #         0),
     #     cone.point) / 2
-
-    dder3 ./= 2
-
+    #
     # @show true_dder3 ./ dder3
 
     return dder3

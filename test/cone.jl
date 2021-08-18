@@ -133,6 +133,8 @@ function test_oracles(
         dir = perturb_scale!(zeros(T, dim), noise, one(T))
         dder3 = Cones.dder3(cone, dir)
         @test dot(dder3, point) ≈ dot(dir, hess * dir) atol=tol rtol=tol
+        dder3 = Cones.dder3(cone, dir, hess * dir)
+        @test dot(dder3, point) ≈ -dot(dir, hess * dir) atol=tol rtol=tol
     end
 
     return

@@ -420,3 +420,62 @@ function dder3(cone::HypoPerLogdetTri, dir::AbstractVector)
 
     return dder3
 end
+
+function dder3(
+    cone::HypoPerLogdetTri{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    @assert cone.grad_updated
+    dder3 = cone.dder3
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+
+    p = pdir[1]
+    q = pdir[2]
+    @views r = pdir[3:end]
+    x = d1[1]
+    y = d1[2]
+    @views z = d1[3:end]
+    u = cone.point[1]
+    v = cone.point[2]
+    @views w = cone.point[3:end]
+    ζ = -cone.ζ
+    σ = cone.ϕ - cone.d
+
+    Wi = Hermitian(cone.Wi)
+    r_mat = Hermitian(svec_to_smat!(copy(cone.mat), r, cone.rt2))
+    z_mat = Hermitian(svec_to_smat!(copy(cone.mat), z, cone.rt2))
+
+    χ_1 = -p + q * σ + v * dot(r_mat, Wi)
+    χ_2 = -x + y * σ + v * dot(z_mat, Wi)
+    ζ_χ_q = χ_1 / ζ - q / v
+    ζ_χ_y = χ_2 / ζ - y / v
+    wiv_ξ_1 = -q / v * I + Wi * r_mat
+    wiv_ξ_2 = -y / v * I + Wi * z_mat
+    wiv_ξ_dot = dot(wiv_ξ_1, wiv_ξ_2')
+
+    c1 = (2 * χ_1 * χ_2 / ζ - v * wiv_ξ_dot) / ζ^2
+
+    dder3[1] = -c1
+    τWvi = (-wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + wiv_ξ_1 * wiv_ξ_2 + wiv_ξ_2 * wiv_ξ_1) / ζ
+    dder3[2] = c1 * σ - tr(τWvi) - 2 * q * y / v^3 + wiv_ξ_dot / ζ
+    dder3_W = c1 * v * Wi + τWvi * v * Wi - Wi * r_mat * Wi * z_mat * Wi - Wi * z_mat * Wi * r_mat * Wi
+    @views smat_to_svec!(dder3[3:end], dder3_W, cone.rt2)
+
+    dder3 ./= 2
+
+    # barrier = bar(cone)
+    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
+    # true_dder3 = ForwardDiff.gradient(
+    #     s2 -> ForwardDiff.derivative(
+    #         s -> ForwardDiff.derivative(
+    #             t -> bardir(s2, s, t),
+    #             0),
+    #         0),
+    #     cone.point) / 2
+    #
+    # @show true_dder3 ./ dder3
+
+    return dder3
+
+end
