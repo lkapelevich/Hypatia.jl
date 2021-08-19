@@ -315,42 +315,38 @@ function dder3(
 
     rwi = r ./ w
     zwi = z ./ w
+    tr_rwi = sum(rwi) * di
+    tr_zwi = sum(zwi) * di
 
-    χ_1 = -p + ϕ * sum(rwi) * di
-    χ_2 = -x + ϕ * sum(zwi) * di
-    ζ_χ_1 = inv(ζ) * χ_1
-    ζ_χ_2 = inv(ζ) * χ_2
+    χ_1 = -p + ϕ * tr_rwi
+    χ_2 = -x + ϕ * tr_zwi
+    ζ_χ_1 = χ_1 / ζ
+    ζ_χ_2 = χ_2 / ζ
 
-    wi = inv.(w)
-    ∇2h = ϕ * (di * wi * wi' * di - di * Diagonal(wi.^2))
-    d = length(w)
-    ∇3h = ϕ * [
-        wi[i] * wi[j] * wi[k] * di^3 - (
-        (i == k ? wi[i]^2 * wi[j] : 0) + (i == j ? wi[i]^2 * wi[k] : 0) + (j == k ? wi[j]^2 * wi[i] : 0)
-        ) * di^2 + (i == j == k ? 2 * wi[i]^3 * di : 0)
-        for i in 1:d, j in 1:d, k in 1:d
-        ]
-
-    c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * dot(r, ∇2h, z)
+    dot_rzwi = dot(rwi, zwi)
+    c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * ϕ * (tr_rwi * tr_zwi - di * dot_rzwi)
 
     dder3[1] = -c1
-    τ = -ζ^(-1) * -∇2h * (r * ζ_χ_2 + z * ζ_χ_1) +
-        -ζ^(-1) * [dot(r, -∇3h[i, :, :], z) for i in 1:d]
-    dder3[2:end] .= c1 * ϕ * di ./ w + τ - 2 * (r .* z ./ w.^3)
+    rz_ζ_χ_wi = (r * ζ_χ_2 + z * ζ_χ_1) ./ w
+    rzwi = rwi .* zwi
+    τ = (sum(rz_ζ_χ_wi) * di .- rz_ζ_χ_wi .+
+        tr_rwi * tr_zwi .- tr_rwi * zwi .- tr_zwi * rwi .- di * dot_rzwi .+
+            2 * rzwi) * ϕ * di ./ w / ζ
+    dder3[2:end] .= c1 * ϕ * di ./ w + τ - 2 * rzwi ./ w
 
     dder3 ./= 2
 
-    barrier = bar(cone)
-    bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
-    true_dder3 = ForwardDiff.gradient(
-        s2 -> ForwardDiff.derivative(
-            s -> ForwardDiff.derivative(
-                t -> bardir(s2, s, t),
-                0),
-            0),
-        cone.point) / 2
-
-    @show true_dder3 ./ dder3
+    # barrier = bar(cone)
+    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
+    # true_dder3 = ForwardDiff.gradient(
+    #     s2 -> ForwardDiff.derivative(
+    #         s -> ForwardDiff.derivative(
+    #             t -> bardir(s2, s, t),
+    #             0),
+    #         0),
+    #     cone.point) / 2
+    #
+    # @show true_dder3 ./ dder3
 
     return dder3
 
