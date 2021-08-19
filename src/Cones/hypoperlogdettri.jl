@@ -443,8 +443,8 @@ function dder3(
     σ = cone.ϕ - cone.d
 
     Wi = Hermitian(cone.Wi)
-    r_mat = Hermitian(svec_to_smat!(copy(cone.mat), r, cone.rt2))
-    z_mat = Hermitian(svec_to_smat!(copy(cone.mat), z, cone.rt2))
+    r_mat = Hermitian(svec_to_smat!(copy(cone.mat), r, cone.rt2), :U)
+    z_mat = Hermitian(svec_to_smat!(copy(cone.mat), z, cone.rt2), :U)
 
     χ_1 = -p + q * σ + v * dot(r_mat, Wi)
     χ_2 = -x + y * σ + v * dot(z_mat, Wi)

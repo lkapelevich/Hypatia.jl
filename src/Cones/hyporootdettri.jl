@@ -369,3 +369,63 @@ function dder3(cone::HypoRootdetTri{T}, dir::AbstractVector{T}) where {T <: Real
 
     return dder3
 end
+
+function dder3(
+    cone::HypoRootdetTri{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    dder3 = cone.dder3
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+    di = cone.di
+
+    p = pdir[1]
+    @views r = pdir[2:end]
+    x = d1[1]
+    @views z = d1[2:end]
+    u = cone.point[1]
+    @views w = cone.point[2:end]
+    ζ = -cone.ζ
+    ϕ = cone.ϕ
+
+    Wi = Hermitian(cone.Wi)
+    r_mat = Hermitian(svec_to_smat!(copy(cone.mat), r, cone.rt2), :U)
+    z_mat = Hermitian(svec_to_smat!(copy(cone.mat), z, cone.rt2), :U)
+
+    rwi = Wi * r_mat
+    zwi = Wi * z_mat
+    tr_rwi = dot(r_mat, Wi) * di
+    tr_zwi = dot(z_mat, Wi) * di
+
+    χ_1 = -p + ϕ * tr_rwi
+    χ_2 = -x + ϕ * tr_zwi
+
+    dot_rzwi = dot(Wi * r_mat * Wi, z_mat)
+    c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * ϕ * (tr_rwi * tr_zwi - di * dot_rzwi)
+
+    dder3[1] = -c1
+    rz_ζ_χ_wi = Wi * (r_mat * χ_2 / ζ + z_mat * χ_1 / ζ)
+    rzwi = Wi * r_mat * Wi * z_mat + Wi * z_mat * Wi * r_mat
+    τ = (tr(rz_ζ_χ_wi) * di * I - rz_ζ_χ_wi +
+        tr_rwi * tr_zwi * I - tr_rwi * zwi - tr_zwi * rwi - di * dot_rzwi * I +
+            rzwi) * ϕ * di * Wi / ζ
+    dder3_W = c1 * ϕ * di * Wi + τ - rzwi * Wi
+    @views smat_to_svec!(dder3[2:end], dder3_W, cone.rt2)
+
+    dder3 ./= 2
+
+    # barrier = bar(cone)
+    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
+    # true_dder3 = ForwardDiff.gradient(
+    #     s2 -> ForwardDiff.derivative(
+    #         s -> ForwardDiff.derivative(
+    #             t -> bardir(s2, s, t),
+    #             0),
+    #         0),
+    #     cone.point) / 2
+    #
+    # @show true_dder3 ./ dder3
+
+    return dder3
+
+end

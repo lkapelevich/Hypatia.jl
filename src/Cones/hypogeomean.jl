@@ -320,14 +320,12 @@ function dder3(
 
     χ_1 = -p + ϕ * tr_rwi
     χ_2 = -x + ϕ * tr_zwi
-    ζ_χ_1 = χ_1 / ζ
-    ζ_χ_2 = χ_2 / ζ
 
     dot_rzwi = dot(rwi, zwi)
     c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * ϕ * (tr_rwi * tr_zwi - di * dot_rzwi)
 
     dder3[1] = -c1
-    rz_ζ_χ_wi = (r * ζ_χ_2 + z * ζ_χ_1) ./ w
+    rz_ζ_χ_wi = (r * χ_2 / ζ + z * χ_1 / ζ) ./ w
     rzwi = rwi .* zwi
     τ = (sum(rz_ζ_χ_wi) * di .- rz_ζ_χ_wi .+
         tr_rwi * tr_zwi .- tr_rwi * zwi .- tr_zwi * rwi .- di * dot_rzwi .+
