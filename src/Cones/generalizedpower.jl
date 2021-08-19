@@ -208,9 +208,35 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
     end
     zeta = 2 * tgp / w[1]
     phitgr = zeta + tgp^2
-
-    @. g[w_idxs] = [tgp]
     @. g[u_idxs] = -(2 * α * phitgr + (1 .- α) * zeta) ./ u / zeta
+
+    if cone.n > 1
+        if iszero(cone.w2)
+            @. g[w_idxs] = 0
+        else
+            # e1 = zeros(cone.n)
+            # e1[1] = 1
+            # v = cone.dual_point[w_idxs] # - sign(w) * abs(w) * e1
+            # v[1] = 0
+            # # @show w, norm(cone.dual_point[w_idxs])
+            # # v = cone.dual_point[w_idxs] - norm(cone.dual_point[w_idxs]) * e1
+            # g[w_idxs] .= -2 * v * tgp * v[1] / dot(v, v)
+            # @views g[w_idxs][1] += tgp
+
+            e1 = zeros(cone.n)
+            e1[1] = 1
+            w2 = norm(cone.dual_point[w_idxs])
+            v = cone.dual_point[w_idxs] - sign(w) * w2 * e1
+            # v = w - w[1] * e1
+            Q = (I - 2 * v * v' / dot(v, v)) * w / w2
+            # @show Q * cone.dual_point[w_idxs], w
+            f = zeros(cone.n)
+            f[1] = tgp
+            g[w_idxs] .= Q * f #* w2 / w
+        end
+    else
+        @. g[w_idxs] = [tgp]
+    end
 
     cone.dual_grad_updated = true
     return cone.dual_grad

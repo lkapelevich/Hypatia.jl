@@ -73,6 +73,19 @@ function test_oracles(
     dual_grad = Cones.dual_grad(cone)
     @test dot(dual_point, dual_grad) ≈ -nu atol=tol rtol=tol
 
+    # TODO remove or find better test
+    old_point = copy(cone.point)
+    Cones.reset_data(cone)
+    Cones.load_point(cone, -dual_grad)
+    @test Cones.is_feas(cone)
+    @test -Cones.grad(cone) ≈ cone.dual_point
+    Cones.reset_data(cone)
+    Cones.load_point(cone, old_point)
+    @test Cones.is_feas(cone)
+    Cones.grad(cone)
+    Cones.is_dual_feas(cone)
+    Cones.dual_grad(cone)
+
     hess = Matrix(Cones.hess(cone))
     inv_hess = Matrix(Cones.inv_hess(cone))
     @test hess * inv_hess ≈ I atol=tol rtol=tol
@@ -569,8 +582,8 @@ show_time_alloc(C::Type{<:Cones.MatrixEpiPerSquare}) = show_time_alloc(C(2, 2))
 
 # GeneralizedPower
 function test_oracles(C::Type{Cones.GeneralizedPower{T}}) where T
-    # for (du, dw) in [(2, 1), (3, 2), (4, 1), (2, 4)]
-    for (du, dw) in [(2, 1), (3, 1), (4, 1)]
+    for (du, dw) in [(2, 1), (3, 2), (4, 1), (2, 4)]
+    # for (du, dw) in [(2, 1), (3, 1), (4, 1)]
         test_oracles(C(rand_powers(T, du), dw))
         test_oracles(C(fill(inv(T(du)), du), dw))
     end
