@@ -135,6 +135,9 @@ function test_oracles(
         @test dot(dder3, point) ≈ dot(dir, hess * dir) atol=tol rtol=tol
         dder3 = Cones.dder3(cone, dir, hess * dir)
         @test dot(dder3, point) ≈ -dot(dir, hess * dir) atol=tol rtol=tol
+
+        dir2 = perturb_scale!(zeros(T, dim), noise, one(T))
+        dder3 = Cones.dder3(cone, dir, dir2)
     end
 
     return
@@ -566,8 +569,10 @@ show_time_alloc(C::Type{<:Cones.MatrixEpiPerSquare}) = show_time_alloc(C(2, 2))
 
 # GeneralizedPower
 function test_oracles(C::Type{Cones.GeneralizedPower{T}}) where T
-    for (du, dw) in [(2, 1), (3, 2), (4, 1), (2, 4)]
+    # for (du, dw) in [(2, 1), (3, 2), (4, 1), (2, 4)]
+    for (du, dw) in [(2, 1), (3, 1), (4, 1)]
         test_oracles(C(rand_powers(T, du), dw))
+        test_oracles(C(fill(inv(T(du)), du), dw))
     end
 end
 

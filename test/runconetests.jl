@@ -24,7 +24,7 @@ function cone_types(T::Type{<:Real})
         # Cones.EpiNormSpectral{T, Complex{T}},
         # Cones.MatrixEpiPerSquare{T, T},
         # Cones.MatrixEpiPerSquare{T, Complex{T}},
-        # Cones.GeneralizedPower{T},
+        Cones.GeneralizedPower{T},
         Cones.HypoPowerMean{T},
         Cones.HypoGeoMean{T},
         Cones.HypoRootdetTri{T, T},
