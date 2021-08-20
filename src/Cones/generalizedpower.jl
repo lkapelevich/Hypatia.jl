@@ -43,6 +43,7 @@ mutable struct GeneralizedPower{T <: Real} <: Cone{T}
     w_idxs::UnitRange{Int}
     z::T
     w2::T
+    dual_w2::T
     zw::T
     zwzwi::T
     tempu1::Vector{T}
@@ -114,8 +115,8 @@ function is_dual_feas(cone::GeneralizedPower{T}) where {T <: Real}
 
     if all(>(eps(T)), u)
         p = exp(2 * sum(α_i * log(u_i / α_i) for (α_i, u_i) in zip(cone.α, u)))
-        @views w = cone.dual_point[cone.w_idxs]
-        return (p - sum(abs2, w) > eps(T))
+        @views dual_w2 = cone.dual_w2 = sum(abs2, cone.dual_point[cone.w_idxs])
+        return (p - dual_w2 > eps(T))
     end
 
     return false
@@ -206,15 +207,12 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
         zeta = dual_z
     else
         if cone.n == 1
-            Q = I
             w1 = cone.dual_point[w_idxs][1]
         else
-            e1 = zeros(cone.n)
-            e1[1] = 1
-            w2 = norm(cone.dual_point[w_idxs])
-            v = cone.dual_point[w_idxs] - sign(w[1]) * w2 * e1
-            Q = (I - 2 * v * v' / dot(v, v))
-            w1 = dot(Q[1, :], cone.dual_point[w_idxs])
+            v = cone.dual_point[w_idxs]
+            v[1] -= sqrt(cone.dual_w2)
+            # NOTE if subtract from v1, then sign on w1 is plus
+            w1 = sqrt(cone.dual_w2)
         end
         if all(isequal(inv(T(m))), α)
             tgp = -1 / w1 - (1 + sign(w1) * 1 / w1 * sqrt(dual_z * (m^2 / w1^2 * dual_z +
@@ -222,9 +220,12 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
         else
             tgp = conj_tgp(vcat(w1, u), α, dual_z)
         end
-        f = zeros(cone.n)
-        f[1] = tgp
-        g[w_idxs] .= Q * f
+        if cone.n == 1
+            g[w_idxs] .= tgp
+        else
+            g[w_idxs] .= -2 * v * v[1] * tgp / dot(v, v)
+            @views g[w_idxs][1] += tgp
+        end
         zeta = 2 * tgp / w1
     end
 
