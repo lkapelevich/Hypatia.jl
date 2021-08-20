@@ -201,32 +201,30 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
 
     m = length(u)
     dual_z = exp(sum(2 * α .* log.(u)))
+    w2 = cone.dual_w2
+    w2s = sqrt(w2)
 
     if iszero(cone.w2)
         @. g[w_idxs] = 0
         zeta = dual_z
     else
-        if cone.n == 1
-            w1 = cone.dual_point[w_idxs][1]
-        else
-            v = cone.dual_point[w_idxs]
-            v[1] -= sqrt(cone.dual_w2)
-            # NOTE if subtract from v1, then sign on w1 is plus
-            w1 = sqrt(cone.dual_w2)
-        end
         if all(isequal(inv(T(m))), α)
-            tgp = -1 / w1 - (1 + sign(w1) * 1 / w1 * sqrt(dual_z * (m^2 / w1^2 * dual_z +
-                m^2 - 1))) / (w1 / m - m * dual_z / w1)
+            tgw = -1 / w2s - (1 + sign(w2s) * 1 / w2s * sqrt(dual_z * (m^2 / w2s^2 * dual_z +
+                m^2 - 1))) / (w2s / m - m * dual_z / w2s)
         else
-            tgp = conj_tgp(vcat(w1, u), α, dual_z)
+            tgw = conj_tgp(vcat(w2s, u), α, dual_z)
         end
         if cone.n == 1
-            g[w_idxs] .= tgp
+            g[w_idxs] .= tgw
         else
-            g[w_idxs] .= -2 * v * v[1] * tgp / dot(v, v)
-            @views g[w_idxs][1] += tgp
+            # NOTE 1 is arbitrary
+            c = (w[1] - w2s) * tgw / (w2 - w[1] * w2s)
+            g[w_idxs] .= -w
+            @views g[w_idxs][1] += w2s
+            @. g[w_idxs] *= c
+            @views g[w_idxs][1] += tgw
         end
-        zeta = 2 * tgp / w1
+        zeta = 2 * tgw / w2s
     end
 
     @views phitgr = zeta + sum(abs2, g[w_idxs])
