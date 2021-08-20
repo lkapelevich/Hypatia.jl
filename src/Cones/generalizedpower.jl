@@ -146,7 +146,7 @@ function conj_tgp(pr, alpha, k)
     inner_bound = -1 / p - (1 + sign(p) * 1 / p * sqrt(k * (d^2 / p^2 * k + d^2 - 1))) / (p / d - d * k / p)
     gamma = abs(p) / sqrt(phi(r ./ alpha))
     outer_bound = (1 + d) * gamma / (1 - gamma) / p
-    @show inner_bound, outer_bound
+    # @show inner_bound, outer_bound
 
     fval(y) = sum(2 * ai * log(2 * ai * y^2 + (1 + ai) * 2 * y / p) for ai in alpha) -
         log(k) - log(2 * y / p + y^2) - 2 * log(2 * y / p)
@@ -161,10 +161,10 @@ function conj_tgp(pr, alpha, k)
     gap = abs(inner_bound - outer_bound)
 
     while (C * gap > 1) && (gap > 1e-8) # think about latter
-        @show C
-        @show gap
-        @show fval(inner_bound)
-        @show fval(outer_bound)
+        # @show C
+        # @show gap
+        # @show fval(inner_bound)
+        # @show fval(outer_bound)
         # uses the fact that function has known monotonicity
         new_bound = (inner_bound + outer_bound) / 2
         if fval(new_bound) >= 0
@@ -184,7 +184,7 @@ function conj_tgp(pr, alpha, k)
     while abs(fval(new_bound)) > 1e-10
         new_bound -= fval(new_bound) / grad(new_bound)
         iter += 1
-        @show iter
+        # @show iter
     end
 
     return new_bound
@@ -194,49 +194,42 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
     u_idxs = cone.u_idxs
     w_idxs = cone.w_idxs
     @views u = cone.dual_point[u_idxs]
-    @views w = cone.dual_point[w_idxs][1]
+    @views w = cone.dual_point[w_idxs]
     α = cone.α
     g = cone.dual_grad
 
     m = length(u)
     dual_z = exp(sum(2 * α .* log.(u)))
-    if all(isequal(inv(T(m))), α)
-        tgp = -1 / w - (1 + sign(w) * 1 / w * sqrt(dual_z * (m^2 / w^2 * dual_z +
-            m^2 - 1))) / (w / m - m * dual_z / w)
+
+    if iszero(cone.w2)
+        @. g[w_idxs] = 0
+        zeta = dual_z
     else
-        tgp = conj_tgp(vcat(w, u), α, dual_z)
-    end
-    zeta = 2 * tgp / w[1]
-    phitgr = zeta + tgp^2
-    @. g[u_idxs] = -(2 * α * phitgr + (1 .- α) * zeta) ./ u / zeta
-
-    if cone.n > 1
-        if iszero(cone.w2)
-            @. g[w_idxs] = 0
+        if cone.n == 1
+            Q = I
+            w1 = cone.dual_point[w_idxs][1]
         else
-            # e1 = zeros(cone.n)
-            # e1[1] = 1
-            # v = cone.dual_point[w_idxs] # - sign(w) * abs(w) * e1
-            # v[1] = 0
-            # # @show w, norm(cone.dual_point[w_idxs])
-            # # v = cone.dual_point[w_idxs] - norm(cone.dual_point[w_idxs]) * e1
-            # g[w_idxs] .= -2 * v * tgp * v[1] / dot(v, v)
-            # @views g[w_idxs][1] += tgp
-
             e1 = zeros(cone.n)
             e1[1] = 1
             w2 = norm(cone.dual_point[w_idxs])
-            v = cone.dual_point[w_idxs] - sign(w) * w2 * e1
-            # v = w - w[1] * e1
-            Q = (I - 2 * v * v' / dot(v, v)) * w / w2
-            # @show Q * cone.dual_point[w_idxs], w
-            f = zeros(cone.n)
-            f[1] = tgp
-            g[w_idxs] .= Q * f #* w2 / w
+            v = cone.dual_point[w_idxs] - sign(w[1]) * w2 * e1
+            Q = (I - 2 * v * v' / dot(v, v))
+            w1 = dot(Q[1, :], cone.dual_point[w_idxs])
         end
-    else
-        @. g[w_idxs] = [tgp]
+        if all(isequal(inv(T(m))), α)
+            tgp = -1 / w1 - (1 + sign(w1) * 1 / w1 * sqrt(dual_z * (m^2 / w1^2 * dual_z +
+                m^2 - 1))) / (w1 / m - m * dual_z / w1)
+        else
+            tgp = conj_tgp(vcat(w1, u), α, dual_z)
+        end
+        f = zeros(cone.n)
+        f[1] = tgp
+        g[w_idxs] .= Q * f
+        zeta = 2 * tgp / w1
     end
+
+    @views phitgr = zeta + sum(abs2, g[w_idxs])
+    @. g[u_idxs] = -(2 * α * phitgr + (1 - α) * zeta) / u / zeta
 
     cone.dual_grad_updated = true
     return cone.dual_grad
