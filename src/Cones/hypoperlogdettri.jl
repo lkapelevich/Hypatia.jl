@@ -172,7 +172,7 @@ function update_grad(cone::HypoPerLogdetTri)
     return cone.grad
 end
 
-function update_dual_grad(cone::HypoPerLogdetTri)
+function update_dual_grad(cone::HypoPerLogdetTri{T}) where {T <: Real}
     @assert cone.is_feas
     u = cone.dual_point[1]
     v = cone.dual_point[2]
@@ -180,7 +180,7 @@ function update_dual_grad(cone::HypoPerLogdetTri)
     d = cone.d
 
     β = 1 + d - v / u + cone.dual_ϕ
-    bomega = d * omegawright(β / d - log(d))
+    bomega = d * omegawright(β / d - log(T(d)))
     @assert bomega + d * log(bomega) ≈ β
 
     dg[1] = (-d - 2 + v / u + 2 * bomega) / (u * (1 - bomega))

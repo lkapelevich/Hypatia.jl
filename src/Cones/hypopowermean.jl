@@ -133,7 +133,7 @@ function update_grad(cone::HypoPowerMean)
     return cone.grad
 end
 
-function update_dual_grad(cone::HypoPowerMean)
+function update_dual_grad(cone::HypoPowerMean{T}) where {T <: Real}
     u = cone.dual_point[1]
     @views w = cone.dual_point[2:end]
     d = length(w)
@@ -145,7 +145,7 @@ function update_dual_grad(cone::HypoPowerMean)
     fgrad(y) = sum(ai / (y - u * ai) for ai in α)
     hess_abs(y) = sum(ai / (y - u * ai)^2 for ai in α)
 
-    lower_bound = 0
+    lower_bound = zero(T)
     upper_bound = exp(sumlog) + u / d
 
     C = sum(α.^(-2)) / u^2 /
@@ -166,7 +166,7 @@ function update_dual_grad(cone::HypoPowerMean)
 
     new_bound = (lower_bound + upper_bound) / 2
     iter = 0
-    while abs(fval(new_bound)) > 1e-10
+    while abs(fval(new_bound)) > 1000eps(T)
         new_bound -= fval(new_bound) / fgrad(new_bound)
         iter += 1
     end

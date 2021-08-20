@@ -66,7 +66,7 @@ end
 
 get_nu(cone::HypoPerLog) = cone.dim
 
-use_sqrt_scal_hess_oracles(::Int, cone::HypoPerLog{T}, ::T) where {T <: Real} = false
+# use_sqrt_scal_hess_oracles(::Int, cone::HypoPerLog{T}, ::T) where {T <: Real} = false
 
 function set_initial_point!(arr::AbstractVector, cone::HypoPerLog)
     (arr[1], arr[2], w) = get_central_ray_hypoperlog(cone.dim - 2)
@@ -125,7 +125,7 @@ function update_grad(cone::HypoPerLog)
     return cone.grad
 end
 
-function update_dual_grad(cone::HypoPerLog)
+function update_dual_grad(cone::HypoPerLog{T}) where {T <: Real}
     u = cone.dual_point[1]
     v = cone.dual_point[2]
     @views w = cone.dual_point[3:end]
@@ -134,7 +134,7 @@ function update_dual_grad(cone::HypoPerLog)
 
     β = 1 + d - v / u + cone.dual_ϕ
     # @show β / d - log(d)
-    bomega = d * omegawright(β / d - log(d))
+    bomega = d * omegawright(β / d - log(T(d)))
     @assert bomega + d * log(bomega) ≈ β
 
     dg[1] = (-d - 2 + v / u + 2 * bomega) / (u * (1 - bomega))

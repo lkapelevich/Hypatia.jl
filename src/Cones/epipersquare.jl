@@ -319,6 +319,7 @@ function update_nt(cone::EpiPerSquare{T}, mu::T) where {T <: Real}
     @assert cone.dual_feas_updated
     nt_point = cone.nt_point
     nt_point_sqrt = cone.nt_point_sqrt
+    rt2 = sqrt(T(2))
 
     normalized_point = cone.point ./ sqrt(cone.dist * 2)
     normalized_dual_point = cone.dual_point ./ sqrt(cone.dual_dist * 2)
@@ -330,9 +331,9 @@ function update_nt(cone::EpiPerSquare{T}, mu::T) where {T <: Real}
     nt_point ./= 2 * gamma
 
     copyto!(nt_point_sqrt, nt_point)
-    nt_point_sqrt[1] += inv(sqrt(2))
-    nt_point_sqrt[2] += inv(sqrt(2))
-    nt_point_sqrt ./= sqrt(2 + (nt_point[1] + nt_point[2]) * sqrt(2))
+    nt_point_sqrt[1] += inv(rt2)
+    nt_point_sqrt[2] += inv(rt2)
+    nt_point_sqrt ./= sqrt(2 + (nt_point[1] + nt_point[2]) * rt2)
 
     cone.rt_dist_ratio = sqrt(cone.dist / cone.dual_dist)
     cone.rt_rt_dist_ratio = sqrt(cone.rt_dist_ratio)
