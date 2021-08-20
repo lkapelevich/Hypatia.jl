@@ -138,7 +138,7 @@ function update_grad(cone::GeneralizedPower)
     return cone.grad
 end
 
-function conj_tgp(pr, alpha, k)
+function conj_tgp(pr::Vector{T}, alpha::Vector{T}, k::T) where {T <: Real}
     (p, r) = (pr[1], pr[2:end])
 
     phi(w) = exp(sum(2 * alpha .* log.(w)))
@@ -161,7 +161,7 @@ function conj_tgp(pr, alpha, k)
         (4 * abs((outer_bound + 1 / p) / (outer_bound * (outer_bound + 2 / p))))
     gap = abs(inner_bound - outer_bound)
 
-    while (C * gap > 1) && (gap > 1e-8) # think about latter
+    while (C * gap > 1) #&& (gap > 1e-8) # think about latter
         # @show C
         # @show gap
         # @show fval(inner_bound)
@@ -182,11 +182,12 @@ function conj_tgp(pr, alpha, k)
 
     new_bound = (inner_bound + outer_bound) / 2
     iter = 0
-    while abs(fval(new_bound)) > 1e-10
+    while abs(fval(new_bound)) > 1000eps(T)
         new_bound -= fval(new_bound) / grad(new_bound)
         iter += 1
         # @show iter
     end
+    # @show fval(new_bound)
 
     return new_bound
 end
@@ -204,25 +205,25 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
     w2 = cone.dual_w2
     w2s = sqrt(w2)
 
-    if iszero(cone.w2)
+    if all(.≈(zero(T), w))
         @. g[w_idxs] = 0
         zeta = dual_z
     else
         if all(isequal(inv(T(m))), α)
-            tgw = -1 / w2s - (1 + sign(w2s) * 1 / w2s * sqrt(dual_z * (m^2 / w2s^2 * dual_z +
+            tgw = -1 / w2s - (1 + 1 / w2s * sqrt(dual_z * (m^2 / w2s^2 * dual_z +
                 m^2 - 1))) / (w2s / m - m * dual_z / w2s)
         else
             tgw = conj_tgp(vcat(w2s, u), α, dual_z)
         end
         if cone.n == 1
-            g[w_idxs] .= tgw
+            g[w_idxs] .= tgw * sign(w[1])
         else
-            # NOTE 1 is arbitrary
-            c = (w[1] - w2s) * tgw / (w2 - w[1] * w2s)
+            i = argmax(i -> abs(w[i]), 1:cone.n)
+            c = (w[i] - w2s) * tgw / (w2 - w[i] * w2s)
             g[w_idxs] .= -w
-            @views g[w_idxs][1] += w2s
+            @views g[w_idxs][i] += w2s
             @. g[w_idxs] *= c
-            @views g[w_idxs][1] += tgw
+            @views g[w_idxs][i] += tgw
         end
         zeta = 2 * tgw / w2s
     end
