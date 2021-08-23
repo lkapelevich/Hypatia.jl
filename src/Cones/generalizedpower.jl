@@ -324,12 +324,9 @@ function inv_hess_prod!(
     uk1 = u .* k1
     c4 = α .* k1
     k2 = sum(c4)
-    # k5 = z + w^2
-    k5 = zw .+ 2 * w.^2
-    k3 = (-dot(gw, w) - 2) * zw / k5
-    k4 = 1 .- z * 2 * (2 .+ k3) / zw * k2
-
     w2 = sum(abs2, w)
+    k3 = (dot(w, -gw) - 2) * zw / (z + w2)
+    k4 = 1 + z * 2 * k2 * (2 / (z + w2) + k3 / zw)
 
     @inbounds for j in 1:size(arr, 2)
         @views begin
@@ -343,15 +340,23 @@ function inv_hess_prod!(
         # A = dot(r, -w) / k7
         # B = 2 * w2 * z / (z + w2)
 
-        k8 = (dot(w, -gw) - 2) * zw / (z + w2)
 
-        my_y = (k2 * k8 * dot(r, w) - dot(uk1, p)) /
-            (1 + z * 2 * k2 * (2 / (z + w2) + k8 / zw))
+        my_y = k2 * k3 * dot(r, w) / k4 - dot(uk1, p) / k4
 
-        # wgw = A + B * my_y
-        wgw = (dot(r, -w) * zw^2 / 2 + 2 * w2 * z * my_y) / (z + w2)
-        prod_w_2 = zw^2 * r ./ (2 * k5) + 2 * -w * z * my_y ./ k5
-        prod_w .= zw * (r / 2 + -w / zw^2 * (2 * z * my_y - 2 * wgw))
+        # wgw = dot(r, w) * -(zw^2 / 2 - 2 * w2 * z * k2 * k3 / k4) / (z + w2) +
+        #      dot(uk1, p) * -2 * w2 * z / k4 / (z + w2)
+
+        # r1 = k2 * k3 / k4
+        # r2 = -(zw^2 / 2 - 2 * w2 * z * k2 * k3 / k4) / (z + w2)
+        # p1 = -1 / k4
+        # p2 = -2 * w2 * z / k4 / (z + w2)
+
+        k6 = (-z^2 + w2 * z) / (z + w2) / k4
+        k234 = k2 * k3 / k4
+        k7 = zw * (z * k234 + zw / 2) / (z + w2)
+
+        prod_w .= zw * r / 2 +
+            -2 * w / zw * (k7 * dot(r, w) + k6 * dot(uk1, p))
 
         prod_u .= -(4 * α * z * my_y + 2 * α * (-dot(gw, w) - 2) * (z * my_y + dot(w, prod_w)) -
             p .* u * zw) / zw ./ -gu
