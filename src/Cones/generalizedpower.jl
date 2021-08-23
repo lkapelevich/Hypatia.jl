@@ -205,7 +205,7 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
     w2 = cone.dual_w2
     w2s = sqrt(w2)
 
-    if all(.≈(zero(T), w))
+    if iszero(w2)
         @. g[w_idxs] = 0
         zeta = dual_z
     else
@@ -215,17 +215,8 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
         else
             tgw = conj_tgp(vcat(w2s, u), α, dual_z)
         end
-        if cone.n == 1
-            g[w_idxs] .= tgw * sign(w[1])
-        else
-            i = argmax(i -> abs(w[i]), 1:cone.n)
-            c = (w[i] - w2s) * tgw / (w2 - w[i] * w2s)
-            g[w_idxs] .= -w
-            @views g[w_idxs][i] += w2s
-            @. g[w_idxs] *= c
-            @views g[w_idxs][i] += tgw
-        end
         zeta = 2 * tgw / w2s
+        @. @views g[w_idxs] = w * tgw / w2s
     end
 
     @views phitgr = zeta + sum(abs2, g[w_idxs])
