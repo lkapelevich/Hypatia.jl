@@ -303,6 +303,64 @@ function hess_prod!(
     return prod
 end
 
+function inv_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::GeneralizedPower,
+    )
+    @assert cone.grad_updated
+    u_idxs = cone.u_idxs
+    w_idxs = cone.w_idxs
+    α = cone.α
+    w = cone.point[w_idxs]
+    u = cone.point[u_idxs]
+    gw = cone.grad[w_idxs]
+    gu = cone.grad[u_idxs]
+    z = cone.z
+    zw = cone.zw
+
+    c3 = 1 .+ inv.(α) .+ dot(gw, w)
+    k1 = inv.(c3)
+    uk1 = u .* k1
+    c4 = α .* k1
+    k2 = sum(c4)
+    # k5 = z + w^2
+    k5 = zw .+ 2 * w.^2
+    k3 = (-dot(gw, w) - 2) * zw / k5
+    k4 = 1 .- z * 2 * (2 .+ k3) / zw * k2
+
+    w2 = sum(abs2, w)
+
+    @inbounds for j in 1:size(arr, 2)
+        @views begin
+            p = arr[u_idxs, j]
+            r = arr[w_idxs, j]
+            prod_u = prod[u_idxs, j]
+            prod_w = prod[w_idxs, j]
+        end
+
+        # k7 = 2 * (z + w2) / zw^2
+        # A = dot(r, -w) / k7
+        # B = 2 * w2 * z / (z + w2)
+
+        k8 = (dot(w, -gw) - 2) * zw / (z + w2)
+
+        my_y = (k2 * k8 * dot(r, w) - dot(uk1, p)) /
+            (1 + z * 2 * k2 * (2 / (z + w2) + k8 / zw))
+
+        # wgw = A + B * my_y
+        wgw = (dot(r, -w) * zw^2 / 2 + 2 * w2 * z * my_y) / (z + w2)
+        prod_w_2 = zw^2 * r ./ (2 * k5) + 2 * -w * z * my_y ./ k5
+        prod_w .= zw * (r / 2 + -w / zw^2 * (2 * z * my_y - 2 * wgw))
+
+        prod_u .= -(4 * α * z * my_y + 2 * α * (-dot(gw, w) - 2) * (z * my_y + dot(w, prod_w)) -
+            p .* u * zw) / zw ./ -gu
+
+    end
+
+    return prod
+end
+
 function bar(cone::GeneralizedPower)
     function barrier(uw)
         (u, w) = (uw[cone.u_idxs], uw[cone.w_idxs])
