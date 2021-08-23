@@ -66,7 +66,7 @@ end
 
 get_nu(cone::HypoPerLog) = cone.dim
 
-# use_sqrt_scal_hess_oracles(::Int, cone::HypoPerLog{T}, ::T) where {T <: Real} = false
+use_sqrt_scal_hess_oracles(::Int, ::HypoPerLog{T}, ::T) where {T <: Real} = false
 
 function set_initial_point!(arr::AbstractVector, cone::HypoPerLog)
     (arr[1], arr[2], w) = get_central_ray_hypoperlog(cone.dim - 2)

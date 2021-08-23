@@ -134,6 +134,9 @@ function test_oracles(
         Cones.inv_sqrt_hess_prod!(prod_mat2, Matrix(one(T) * I, dim, dim), cone)
         @test prod_mat2' * prod_mat2 ≈ inv_hess atol=tol rtol=tol
 
+    end
+
+    if Cones.use_sqrt_scal_hess_oracles(dim + 1, cone, one(T))
         prod_mat2 = Matrix(Cones.sqrt_scal_hess_prod!(prod_mat, inv_scal_hess, cone, mu)')
         @test Cones.sqrt_scal_hess_prod!(prod_mat, prod_mat2, cone, mu) ≈ I atol=tol rtol=tol
     end

@@ -655,14 +655,11 @@ end
 #     # TODO refactor
 #     hess(cone)
 #
-#     rtmu = sqrt(mu)
-#     old_hess_mu = copy(cone.hess)
-#     old_hess = old_hess_mu / mu
-#     H = cone.scal_hess.data
-#     s = cone.point * rtmu
+#     old_hess = copy(cone.hess)
+#     s = cone.point
 #     z = cone.dual_point
 #     ts = -dual_grad(cone)
-#     tz = -grad(cone) / rtmu
+#     tz = -grad(cone)
 #
 #     nu = get_nu(cone)
 #     cone_mu = dot(s, z) / nu
@@ -673,30 +670,27 @@ end
 #     Hts = old_hess * ts
 #     tol = sqrt(eps(T))
 #     # tol = 1000eps(T)
-#     if (norm(ds) < tol) || (norm(dz) < tol) || (abs(cone_mu * tmu - 1) < tol) ||
+#     if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
 #         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
 #         # @show "~~ skipping updates ~~"
-#         return inv_hess_prod!(prod, arr, cone)
+#         inv_hess_prod!(prod, arr, cone)
+#         prod ./= mu
 #     else
 #         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
 #         v2 = Hts - tmu * tz
-#         M1 = dz * v1'
 #
-#         # H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
-#         #     (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
-#
-#         c1 = 1 / sqrt(2 * mu * nu)
-#         c2 = sqrt(mu / (dot(ts, Hts) - nu * tmu^2))
+#         c1 = 1 / sqrt(2 * cone_mu * nu)
+#         c2 = sqrt(cone_mu / (dot(ts, Hts) - nu * tmu^2))
 #         U = hcat(c1 * dz, c1 * v1, -c2 * v2)
-#         V = hcat(c1 * v1, c1 * dz, c2 * v2)
+#         V = hcat(c1 * v1, c1 * dz, c2 * v2)'
 #
-#         t1 = inv_hess_prod!(copy(arr), arr, cone)
+#         t1 = inv_hess_prod!(copy(arr), arr, cone) / cone_mu
 #         t2 = V * t1
-#         t3 = inv_hess_prod!(copy(U), U, cone)
+#         t3 = inv_hess_prod!(copy(U), U, cone) / cone_mu
 #         t4 = I + V * t3
 #         t5 = t4 \ t2
 #         t6 = U * t5
-#         t7 = inv_hess_prod!(copy(t6), t6, cone)
+#         t7 = inv_hess_prod!(copy(t6), t6, cone) / cone_mu
 #         prod .= t1 - t7
 #     end
 #
