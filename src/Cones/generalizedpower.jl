@@ -319,13 +319,15 @@ function inv_hess_prod!(
     z = cone.z
     zw = cone.zw
 
-    c3 = 1 .+ inv.(α) .+ dot(gw, w)
+    gww = dot(gw, w) # also product of norms
+    gww2 = -gww - 2
+    c3 = 1 .+ inv.(α) .+ gww
     k1 = inv.(c3)
     uk1 = u .* k1
     c4 = α .* k1
     k2 = sum(c4)
     w2 = sum(abs2, w)
-    k3 = (dot(w, -gw) - 2) * zw / (z + w2)
+    k3 = gww2 * zw / (z + w2)
     k4 = 1 + z * 2 * k2 * (2 / (z + w2) + k3 / zw)
 
     @inbounds for j in 1:size(arr, 2)
@@ -336,30 +338,18 @@ function inv_hess_prod!(
             prod_w = prod[w_idxs, j]
         end
 
-        # k7 = 2 * (z + w2) / zw^2
-        # A = dot(r, -w) / k7
-        # B = 2 * w2 * z / (z + w2)
-
-
-        my_y = k2 * k3 * dot(r, w) / k4 - dot(uk1, p) / k4
-
-        # wgw = dot(r, w) * -(zw^2 / 2 - 2 * w2 * z * k2 * k3 / k4) / (z + w2) +
-        #      dot(uk1, p) * -2 * w2 * z / k4 / (z + w2)
-
-        # r1 = k2 * k3 / k4
-        # r2 = -(zw^2 / 2 - 2 * w2 * z * k2 * k3 / k4) / (z + w2)
-        # p1 = -1 / k4
-        # p2 = -2 * w2 * z / k4 / (z + w2)
 
         k6 = (-z^2 + w2 * z) / (z + w2) / k4
         k234 = k2 * k3 / k4
+        # my_y = k234 * dot(r, w) - dot(uk1, p) / k4
         k7 = zw * (z * k234 + zw / 2) / (z + w2)
 
-        prod_w .= zw * r / 2 +
-            -2 * w / zw * (k7 * dot(r, w) + k6 * dot(uk1, p))
+        prod_w .= zw * r / 2 - 2 * w / zw * (k7 * dot(r, w) + k6 * dot(uk1, p))
 
-        prod_u .= -(4 * α * z * my_y + 2 * α * (-dot(gw, w) - 2) * (z * my_y + dot(w, prod_w)) -
-            p .* u * zw) / zw ./ -gu
+        prod_u .=
+            dot(uk1, p) * 2 * α ./ gu / zw * (z * gww / k4 - 2 * gww2 * k6 * w2 / zw) +
+            -2 * uk1 / zw * k6 * dot(w, r) +
+            p .* u ./ -gu
 
     end
 
