@@ -323,14 +323,57 @@ function dder3(cone::HypoPowerMean{T}, dir::AbstractVector{T}) where {T <: Real}
     return dder3
 end
 
-function bar(cone::HypoPowerMean)
+function dder3(
+    cone::HypoPowerMean{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    dder3 = cone.dder3
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+
+    p = pdir[1]
+    @views r = pdir[2:end]
+    x = d1[1]
+    @views z = d1[2:end]
+    u = cone.point[1]
+    @views w = cone.point[2:end]
+    ζ = -cone.ζ
+    ϕ = cone.ϕ
     α = cone.α
-    function barrier(uw)
-        (u, w) = (uw[1], uw[2:end])
-        return -log(exp(sum(α .* log.(w))) - u) - sum(log, w)
-    end
-    return barrier
+
+    rwi = r ./ w
+    zwi = z ./ w
+    tr_rwi = dot(rwi, α)
+    tr_zwi = dot(zwi, α)
+
+    χ_1 = -p + ϕ * tr_rwi
+    χ_2 = -x + ϕ * tr_zwi
+
+    dot_rzwi = sum(rwi .* zwi .* α)
+    c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * ϕ * (tr_rwi * tr_zwi - dot_rzwi)
+
+    dder3[1] = -c1
+    rz_ζ_χ_wi = (r * χ_2 / ζ + z * χ_1 / ζ) ./ w
+    rzwi = rwi .* zwi
+    τ = (dot(rz_ζ_χ_wi, α) .- rz_ζ_χ_wi .+
+        tr_rwi * tr_zwi .- tr_rwi * zwi .- tr_zwi * rwi .- dot_rzwi .+
+            2 * rzwi) * ϕ .* α ./ w / ζ
+    dder3[2:end] .= c1 * ϕ * α ./ w + τ - 2 * rzwi ./ w
+
+    dder3 ./= 2
+
+    return dder3
+
 end
+
+# function bar(cone::HypoPowerMean)
+#     α = cone.α
+#     function barrier(uw)
+#         (u, w) = (uw[1], uw[2:end])
+#         return -log(exp(sum(α .* log.(w))) - u) - sum(log, w)
+#     end
+#     return barrier
+# end
 
 # see analysis in
 # https://github.com/lkapelevich/HypatiaSupplements.jl/tree/master/centralpoints
