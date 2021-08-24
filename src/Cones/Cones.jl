@@ -337,8 +337,8 @@ function update_scal_hess_fact(cone::Cone{T}, mu::T) where {T <: Real}
         cone_mu = c1 / nu
         #
         tmu = dot(ts, tz) / nu
-        @assert dot(s, tz) ≈ nu
-        @assert dot(z, ts) ≈ nu
+        @assert dot(s, tz) ≈ T(nu)
+        @assert dot(z, ts) ≈ T(nu)
         @assert cone_mu * tmu >= 1
         #
         ds = s - cone_mu * ts

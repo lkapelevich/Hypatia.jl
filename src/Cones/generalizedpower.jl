@@ -319,7 +319,7 @@ function inv_hess_prod!(
     z = cone.z
     zw = cone.zw
 
-    gww = dot(gw, w) # also product of norms
+    gww = dot(gw, w) # also zct of norms
     gww2 = -gww - 2
     c3 = 1 .+ inv.(α) .+ gww
     k1 = inv.(c3)
@@ -370,12 +370,12 @@ function dder3(cone::GeneralizedPower, dir::AbstractVector)
     u_idxs = cone.u_idxs
     w_idxs = cone.w_idxs
     @views u = cone.point[u_idxs]
-    @views w = cone.point[cone.w_idxs]
+    @views w = cone.point[w_idxs]
     dder3 = cone.dder3
     @views u_dder3 = dder3[u_idxs]
-    @views w_dder3 = dder3[cone.w_idxs]
+    @views w_dder3 = dder3[w_idxs]
     @views u_dir = dir[u_idxs]
-    @views w_dir = dir[cone.w_idxs]
+    @views w_dir = dir[w_idxs]
     α = cone.α
     z = cone.z
     zw = cone.zw
@@ -400,6 +400,79 @@ function dder3(cone::GeneralizedPower, dir::AbstractVector)
     c6 = zwi * (z * (4 * audu * c15 - c1) - c10) / zw
     c7 = zwi * (2 * z * audu - wwd) / zw
     @. w_dder3 = c7 * w_dir + c6 * w
+
+    return cone.dder3
+end
+
+function dder3(cone::GeneralizedPower{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+
+    @assert cone.grad_updated
+    u_idxs = cone.u_idxs
+    w_idxs = cone.w_idxs
+    @views u = cone.point[u_idxs]
+    @views w = cone.point[w_idxs]
+    dder3 = cone.dder3
+
+    @views u_dder3 = dder3[u_idxs]
+    @views w_dder3 = dder3[w_idxs]
+
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+
+    α = cone.α
+
+    @views p = pdir[u_idxs]
+    @views r = pdir[w_idxs]
+    @views a = d1[u_idxs]
+    @views b = d1[w_idxs]
+
+    z = cone.z
+    zw = cone.zw
+    zuw = z / zw
+    zuw_tw = zuw * (zuw - 1)
+    aui = 2 * α ./ u
+
+    u_dder3 .=
+        # uuu
+        zuw * (1 - zuw) * aui .*
+        ((2 * zuw - 1) * dot(aui, p) * dot(aui, a) + dot(aui ./ u, a .* p) .+ (dot(aui, a) * p + dot(aui, p) * a) ./ u) +
+        -2 * ((1 .- α) ./ u + zuw * aui) ./ u ./ u .* a .* p +
+        # uuw
+        2 * zuw / zw * aui .*
+        (
+        dot(w, r) * (
+        (2 * zuw - 1) * dot(aui, a) .+
+        a ./ u .+
+        # uww
+        -2 / zw * dot(w, b)
+        ) +
+        #
+        dot(w, b) * (
+        (2 * zuw - 1) * dot(aui, p) .+
+        p ./ u .+
+        # uww
+        -2 / zw * dot(w, r)
+        ) .-
+        sum(r .* b)
+        )
+
+    # w[wk] / zw / zw
+    w_dder3 .=
+        # uuw
+        2 * zuw / zw * w .* ((2 * zuw - 1) * dot(aui, a) * dot(aui, p) + dot(aui ./ u, a .* p)) +
+        # uww
+        -2 * zuw / zw * dot(aui, a) * (4  / zw * dot(w, r) * w + r) +
+        -2 * zuw / zw * dot(aui, p) * (4  / zw * dot(w, b) * w + b) +
+        # www
+        4 / zw / zw * (
+        4 * dot(w, b) * dot(w, r) / zw * w +
+        dot(w, b) .* r +
+        dot(w, r) .* b +
+        sum(b .* r) .* w
+        )
+    dder3 ./= 2
 
     return cone.dder3
 end
