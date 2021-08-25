@@ -14,18 +14,26 @@ mutable struct EpiNormInf{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     hess_aux_updated::Bool
     inv_hess_aux_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, SparseMatrixCSC{T, Int}}
+    scal_hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
+    # scal_hess_fact_mat::Symmetric{T, Matrix{T}} # TODO write inv scal hess
+    # scal_hess_fact::Factorization{T}
 
     w::AbstractVector{R}
     den::AbstractVector{T}
@@ -57,8 +65,10 @@ mutable struct EpiNormInf{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
 end
 
 reset_data(cone::EpiNormInf) = (cone.feas_updated = cone.grad_updated =
+    cone.dual_grad_updated =
     cone.hess_updated = cone.inv_hess_updated = cone.hess_aux_updated =
-    cone.inv_hess_aux_updated = false)
+    cone.inv_hess_aux_updated =
+    cone.scal_hess_updated = cone.inv_scal_hess_updated = false)
 
 use_sqrt_hess_oracles(::Int, cone::EpiNormInf) = false
 
@@ -80,6 +90,7 @@ function setup_extra_data!(
         cone.Hiuim = zeros(T, n)
         cone.idet = zeros(T, n)
     end
+    cone.dual_grad = zeros(R, cone.dim)
     return cone
 end
 
@@ -139,6 +150,28 @@ function update_grad(
 
     cone.grad_updated = true
     return cone.grad
+end
+
+using Roots
+function update_dual_grad(
+    cone::EpiNormInf{T, R},
+    ) where {T <: Real, R <: RealOrComplex{T}}
+    u = cone.dual_point[1]
+    w = vec_copyto!(copy(cone.w), cone.dual_point[2:end])
+    n = cone.n
+    @show cone.dual_point, u, w
+
+    h(y) = u * y + sum(sqrt(1 + abs2(w[i]) * y^2) for i in 1:n) + 1
+    hp(y) = u + sum(abs2(w[i]) * y * (1 + abs2(w[i]) * y^2)^(-1/2) for i in 1:n)
+    y = find_zero((h, hp), 0, Roots.Newton())
+    @show y
+    z = (-2 .+ 2 * sqrt.(1 .+ abs2.(w) * y^2)) ./ abs2.(w)
+
+    cone.dual_grad[1] = y
+    @views vec_copyto!(cone.dual_grad[2:end], z / 2 .* w)
+
+    cone.dual_grad_updated = true
+    return cone.dual_grad
 end
 
 function update_hess_aux(cone::EpiNormInf{T}) where {T <: Real}
