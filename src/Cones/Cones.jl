@@ -289,6 +289,16 @@ function inv_sqrt_hess_prod!(
     return prod
 end
 
+function inv_sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Cone,
+    )
+    @assert cone.scal_hess_fact_updated
+    ldiv!(prod, cone.scal_hess_fact.U', arr)
+    return prod
+end
+
 update_hess_aux(cone::Cone) = nothing
 
 function update_use_hess_prod_slow(cone::Cone{T}) where {T <: Real}
