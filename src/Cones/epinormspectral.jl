@@ -17,24 +17,35 @@ mutable struct EpiNormSpectral{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
     hess_aux_updated::Bool
-    hess_fact_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
+    hess_fact_updated::Bool # TODO remove with closed form inverse Hessian
+    scal_hess_fact_updated::Bool # TODO remove with closed form inverse Hessian
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
+    scal_hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
+    scal_hess_fact::Factorization{T}
 
     W::Matrix{R}
+    dual_W_svd
     Z::Matrix{R}
     fact_Z
+    dual_z::T
     Zi::Matrix{R}
     tau::Matrix{R}
     HuW::Matrix{R}
@@ -67,14 +78,20 @@ mutable struct EpiNormSpectral{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
 end
 
 reset_data(cone::EpiNormSpectral) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = cone.hess_aux_updated =
-    cone.hess_fact_updated = false)
+    cone.dual_grad_updated =
+    cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated = cone.hess_aux_updated =
+    cone.hess_fact_updated = cone.scal_hess_fact_updated = false)
+
+# there should eventually be an explicit hess inv prod
+use_sqrt_scal_hess_oracles(::Int, cone::EpiNormSpectral{T, T}, ::T) where {T <: Real} = false
 
 # TODO only allocate the fields we use
 function setup_extra_data!(
     cone::EpiNormSpectral{T, R},
     ) where {T <: Real, R <: RealOrComplex{T}}
     dim = cone.dim
+    cone.dual_grad = zeros(R, dim)
     (d1, d2) = (cone.d1, cone.d2)
     cone.W = zeros(R, d1, d2)
     cone.Z = zeros(R, d1, d1)
@@ -126,7 +143,9 @@ function is_dual_feas(cone::EpiNormSpectral{T}) where {T <: Real}
     u = cone.dual_point[1]
     if u > eps(T)
         W = @views vec_copyto!(cone.tempd1d2, cone.dual_point[2:end])
-        return (u - sum(svdvals!(W)) > eps(T))
+        cone.dual_W_svd = svd(W)
+        cone.dual_z = u - sum(cone.dual_W_svd.S)
+        return (cone.dual_z > eps(T))
     end
     return false
 end
@@ -147,6 +166,52 @@ function update_grad(cone::EpiNormSpectral)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+# TODO refactor with power cones and epinorminf
+function update_dual_grad(
+    cone::EpiNormSpectral{T, R},
+    ) where {T <: Real, R <: RealOrComplex{T}}
+    d1 = cone.d1
+    u = cone.dual_point[1]
+    dual_W_svd = cone.dual_W_svd
+    w = dual_W_svd.S
+    dual_z = cone.dual_z
+
+    h(y) = u * y + sum(sqrt(1 + abs2(w[i]) * y^2) for i in 1:d1) + 1
+    hp(y) = u + sum(abs2(w[i]) * y * (1 + abs2(w[i]) * y^2)^(-1/2) for i in 1:d1)
+    hpp(y) = sum(abs2(w[i]) / (1 + abs2(w[i]) * y^2)^(3 / 2) for i in 1:d1)
+
+    lower_bound = -(d1 + 1) / dual_z
+    upper_bound = -inv(dual_z)
+    C = hpp(upper_bound) / hp(lower_bound) / 2
+    gap = upper_bound - lower_bound
+    while C * gap > 1
+        new_bound = (lower_bound + upper_bound) / 2
+        if h(new_bound) > 0
+            upper_bound = new_bound
+        else
+            lower_bound = new_bound
+        end
+        C = hpp(upper_bound) / hp(lower_bound) / 2
+        @assert lower_bound < upper_bound < 0
+        gap = upper_bound - lower_bound
+    end
+
+    new_bound = (lower_bound + upper_bound) / 2
+    iter = 0
+    while abs(h(new_bound)) > 1000eps(T)
+        new_bound -= h(new_bound) / hp(new_bound)
+        iter += 1
+        # @show iter
+    end
+
+    z = (-2 .+ 2 * sqrt.(1 .+ abs2.(w) * new_bound^2)) ./ abs2.(w)
+    cone.dual_grad[1] = new_bound
+    cone.dual_grad[2:end] .= vec(dual_W_svd.U * Diagonal(z / 2 .* w) * dual_W_svd.Vt)
+
+    cone.dual_grad_updated = true
+    return cone.dual_grad
 end
 
 function update_hess_aux(cone::EpiNormSpectral)
@@ -291,4 +356,14 @@ function dder3(cone::EpiNormSpectral, dir::AbstractVector)
         8 * u * trZi3 * u) * u_dir - (cone.d1 - 1) * abs2(u_dir / u) / u
 
     return dder3
+end
+
+function bar(cone::EpiNormSpectral{T, T}) where {T <: Real}
+    (d1, d2) = (cone.d1, cone.d2)
+    function barrier(uw)
+        (u, w) = (uw[1], uw[2:end])
+        W = reshape(w, d1, d2)
+        return -logdet(Symmetric(abs2(u) * I - W * W', :U)) + (d1 - 1) * log(u)
+    end
+    return barrier
 end
