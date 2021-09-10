@@ -37,6 +37,7 @@ mutable struct EpiNormInf{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
 
     w::AbstractVector{R}
     den::AbstractVector{T}
+    dual_den::T
     uden::Vector{R}
     wden::Vector{R}
     Huu::T
@@ -71,6 +72,8 @@ reset_data(cone::EpiNormInf) = (cone.feas_updated = cone.grad_updated =
     cone.scal_hess_updated = cone.inv_scal_hess_updated = false)
 
 use_sqrt_hess_oracles(::Int, cone::EpiNormInf) = false
+
+use_sqrt_scal_hess_oracles(::Int, cone::EpiNormInf{T, T}, ::T) where {T <: Real} = false
 
 function setup_extra_data!(
     cone::EpiNormInf{T, R},
@@ -126,7 +129,8 @@ function is_dual_feas(cone::EpiNormInf{T}) where T
         else
             @views norm1 = norm(dp[2:end], 1)
         end
-        return (u - norm1 > eps(T))
+        cone.dual_den = u - norm1
+        return (cone.dual_den > eps(T))
     end
 
     return false
@@ -152,22 +156,45 @@ function update_grad(
     return cone.grad
 end
 
-using Roots
+# TODO refactor with power cones
 function update_dual_grad(
     cone::EpiNormInf{T, R},
     ) where {T <: Real, R <: RealOrComplex{T}}
     u = cone.dual_point[1]
     w = vec_copyto!(copy(cone.w), cone.dual_point[2:end])
     n = cone.n
-    @show cone.dual_point, u, w
 
     h(y) = u * y + sum(sqrt(1 + abs2(w[i]) * y^2) for i in 1:n) + 1
     hp(y) = u + sum(abs2(w[i]) * y * (1 + abs2(w[i]) * y^2)^(-1/2) for i in 1:n)
-    y = find_zero((h, hp), 0, Roots.Newton())
-    @show y
-    z = (-2 .+ 2 * sqrt.(1 .+ abs2.(w) * y^2)) ./ abs2.(w)
+    hpp(y) = sum(abs2(w[i]) / (1 + abs2(w[i]) * y^2)^(3 / 2) for i in 1:n)
 
-    cone.dual_grad[1] = y
+    lower_bound = -(n + 1) / cone.dual_den
+    upper_bound = -inv(cone.dual_den)
+    C = hpp(upper_bound) / hp(lower_bound) / 2
+    gap = upper_bound - lower_bound
+    while C * gap > 1
+        new_bound = (lower_bound + upper_bound) / 2
+        if h(new_bound) > 0
+            upper_bound = new_bound
+        else
+            lower_bound = new_bound
+        end
+        C = hpp(upper_bound) / hp(lower_bound) / 2
+        @assert lower_bound < upper_bound < 0
+        gap = upper_bound - lower_bound
+        # @show gap
+    end
+
+    new_bound = (lower_bound + upper_bound) / 2
+    iter = 0
+    while abs(h(new_bound)) > 1000eps(T)
+        new_bound -= h(new_bound) / hp(new_bound)
+        iter += 1
+        # @show iter
+    end
+
+    z = (-2 .+ 2 * sqrt.(1 .+ abs2.(w) * new_bound^2)) ./ abs2.(w)
+    cone.dual_grad[1] = new_bound
     @views vec_copyto!(cone.dual_grad[2:end], z / 2 .* w)
 
     cone.dual_grad_updated = true
@@ -438,6 +465,58 @@ function inv_hess_prod!(
     return prod
 end
 
+# remove if becomes fallback
+function inv_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::EpiNormInf{T, T},
+    mu::T,
+    ) where {T <: Real}
+
+    hess(cone)
+
+    old_hess = copy(cone.hess)
+    s = cone.point
+    z = cone.dual_point
+    ts = -dual_grad(cone)
+    tz = -grad(cone)
+
+    nu = get_nu(cone)
+    cone_mu = dot(s, z) / nu
+    tmu = dot(ts, tz) / nu
+
+    ds = s - cone_mu * ts
+    dz = z - cone_mu * tz
+    Hts = old_hess * ts
+    tol = sqrt(eps(T))
+    # tol = 1000eps(T)
+    if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
+        (abs(dot(ts, Hts) - nu * tmu^2) < tol)
+        # @show "~~ skipping updates ~~"
+        inv_hess_prod!(prod, arr, cone)
+        prod ./= mu
+    else
+        v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
+        v2 = Hts - tmu * tz
+
+        c1 = 1 / sqrt(2 * cone_mu * nu)
+        c2 = sqrt(cone_mu / (dot(ts, Hts) - nu * tmu^2))
+        U = hcat(c1 * dz, c1 * v1, -c2 * v2)
+        V = hcat(c1 * v1, c1 * dz, c2 * v2)'
+
+        t1 = inv_hess_prod!(copy(arr), arr, cone) / cone_mu
+        t2 = V * t1
+        t3 = inv_hess_prod!(copy(U), U, cone) / cone_mu
+        t4 = I + V * t3
+        t5 = t4 \ t2
+        t6 = U * t5
+        t7 = inv_hess_prod!(copy(t6), t6, cone) / cone_mu
+        prod .= t1 - t7
+    end
+
+    return prod
+end
+
 function dder3(
     cone::EpiNormInf{T},
     dir::AbstractVector{T},
@@ -496,6 +575,15 @@ function dder3(
     end
 
     return dder3
+end
+
+function bar(cone::EpiNormInf{T, T}) where {T <: Real}
+    function barrier(uw)
+        (u, w) = (uw[1], uw[2:end])
+        d = length(w)
+        return -sum(wi -> log(u^2 - abs2(wi)), w) + (d - 1) * log(u)
+    end
+    return barrier
 end
 
 # TODO remove this in favor of new hess_nz_count etc functions

@@ -72,6 +72,8 @@ get_nu(cone::HypoPowerMean) = cone.dim
 
 # use_sqrt_hess_oracles(::Int, cone::HypoPowerMean) = false
 
+use_sqrt_scal_hess_oracles(::Int, ::HypoPowerMean{T}, ::T) where {T <: Real} = false
+
 function set_initial_point!(
     arr::AbstractVector{T},
     cone::HypoPowerMean{T},
@@ -160,7 +162,7 @@ function update_dual_grad(cone::HypoPowerMean{T}) where {T <: Real}
         else
             lower_bound = new_bound
         end
-        C = hess_abs(lower_bound) / fgrad(upper_bound)
+        C = hess_abs(lower_bound) / fgrad(upper_bound) / 2
         gap = upper_bound - lower_bound
     end
 
