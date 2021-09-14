@@ -577,6 +577,95 @@ function dder3(
     return dder3
 end
 
+function dder3(
+    cone::EpiNormInf{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    dder3 = cone.dder3
+    point = cone.point
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+    d2 = zero(d1)
+    d2[1] -= (cone.n - 1) / point[1]^2 * d1[1]
+
+    # do SOC for each i
+    for i in 2:(cone.n + 1)
+        dist = (abs2(point[1]) - abs2(point[i])) / 2
+        d2[1] += (abs2(point[1]) + abs2(point[i])) / abs2(dist) * d1[1] / 2
+        d2[1] += -point[1] * point[i] * d1[i] / abs2(dist)
+        d2[i] = -point[1] * point[i] / abs2(dist) * d1[1] +
+            point[i] * dot(point[i], d1[i]) / abs2(dist) + d1[i] / dist
+
+        @views jdot_p_s = point[1] * pdir[1] - point[i] * pdir[i]
+        @. dder3[[1, i]] = jdot_p_s * ddir[[1, i]]
+        dot_s_z = pdir[1] * ddir[1] + pdir[i] * ddir[i]
+        dot_p_z = point[1] * ddir[1] + point[i] * ddir[i]
+        dder3[1] += dot_s_z * point[1] - dot_p_z * pdir[1]
+        dder3[i] += -dot_s_z * point[i] + dot_p_z * pdir[i]
+        dder3[[1, i]] ./= -dist * 2
+    end
+    # @show d2 ./ ddir
+    u = point[1]
+    w = cone.w
+    # H = zero(cone.hess).data
+    z = cone.den * 2
+    #
+    #
+    # # H[1, 1] = sum(pdir[2:end] .* 4w .* (4u^2 ./ z.^3 - 1 ./ z.^2)) +
+    # #     pdir[1] * (sum(4u ./ z.^3 .* (3z .- 4u^2)) + 2 * (cone.n - 1) / u^3)
+    # H[1, 1] = pdir[1] * 2 * (cone.n - 1) / u^3 + sum(
+    #     16 * (pdir[2:end] .* w * u^2 .- u^3 * pdir[1]) ./ z.^3 +
+    #     4 * (-pdir[2:end] .* w .+ 3u * pdir[1]) ./ z.^2
+    #     )
+    # H[1, 2:end] .= 16 * (pdir[1] * w * u^2 - pdir[2:end] * u .* w.^2) ./ z.^3 +
+    #     4 * (-pdir[1] * w - pdir[2:end] * u) ./ z.^2
+    # H[2:end, 2:end] = Diagonal(
+    #     16 * w.^2 .* (-pdir[1] * u .+ pdir[2:end] .* w) ./ z.^3 +
+    #     4 * (-pdir[1] * u .+ 3w .* pdir[2:end]) ./ z.^2
+    #     )
+
+    dder3[1] = pdir[1] * 2 * (cone.n - 1) / u^3 * d1[1] +
+        sum(
+        16u * (
+            (-d1[1] * u .+ d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
+        ) ./ z.^3 +
+        4 * (
+            u * (d1[1] * pdir[1] * 3 .- pdir[2:end] .* d1[2:end]) +
+            w .* (-d1[1] .* pdir[2:end] - pdir[1] * d1[2:end] )
+            # d1[1] * -pdir[2:end] .* w .+ d1[1] * 3u * pdir[1] +
+            # -pdir[1] * w .* d1[2:end] - pdir[2:end] .* d1[2:end] * u
+            ) ./ z.^2
+        )
+
+    dder3[2:end] .= (
+        16 * w .* (
+            (d1[1] * u .- d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
+            ) ./ z.^3 +
+        4 * (
+            -pdir[1] * w * d1[1] - pdir[2:end] * u * d1[1] +
+            -pdir[1] .* d1[2:end] * u .+ 3w .* pdir[2:end] .* d1[2:end]
+            ) ./ z.^2
+        )
+    dder3 ./= 2
+    # @show Symmetric(H) ./ ()
+
+    #
+    # d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+    # barrier = bar(cone)
+    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
+    # true_deriv = ForwardDiff.gradient(
+    #     s2 -> ForwardDiff.derivative(
+    #         s -> ForwardDiff.derivative(
+    #             t -> bardir(s2, s, t),
+    #             0),
+    #         0),
+    #     cone.point) / 2
+    # @show true_deriv ./ dder3
+
+
+    return dder3
+end
+
 function bar(cone::EpiNormInf{T, T}) where {T <: Real}
     function barrier(uw)
         (u, w) = (uw[1], uw[2:end])
