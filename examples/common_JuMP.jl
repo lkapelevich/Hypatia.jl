@@ -33,6 +33,7 @@ MOIU.@model(ExpPSD,
     true,
     )
 
+# allow sum of logs instead of MOI.ExponentialCone
 # polyhedral cones not updated yet
 MOIU.@model(PSDLog,
     (),

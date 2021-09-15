@@ -188,14 +188,24 @@ function update_dual_grad(
     new_bound = (lower_bound + upper_bound) / 2
     iter = 0
     while abs(h(new_bound)) > 1000eps(T)
-        new_bound -= h(new_bound) / hp(new_bound)
+        # new_bound -= h(new_bound) / hp(new_bound)
+        new_bound -= h(BigFloat(new_bound)) / hp(BigFloat(new_bound))
         iter += 1
         # @show iter
     end
+    new_bound = Float64(new_bound)
 
-    z = (-2 .+ 2 * sqrt.(1 .+ abs2.(w) * new_bound^2)) ./ abs2.(w)
     cone.dual_grad[1] = new_bound
-    @views vec_copyto!(cone.dual_grad[2:end], z / 2 .* w)
+    # z * w / 2
+    zw2 = copy(w)
+    for i in eachindex(w)
+        if abs(w[i]) .< 100eps(T)
+            zw2[i] = new_bound^2 * w[i] / 2
+        else
+            zw2[i] = (-1 + sqrt(1 + abs2(w[i]) * new_bound^2)) / w[i]
+        end
+    end
+    @views vec_copyto!(cone.dual_grad[2:end], zw2)
 
     cone.dual_grad_updated = true
     return cone.dual_grad
