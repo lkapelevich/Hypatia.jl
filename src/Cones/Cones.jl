@@ -571,7 +571,7 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     # @show lh_check2
     # @assert cone.scal_hess * s ≈ z
     # @assert cone.scal_hess * ts ≈ tz
-    check = norm(BigFloat.(cone.scal_hess) * ts - tz)
+    # check = norm(BigFloat.(cone.scal_hess) * ts - tz)
     # @show check
 
     cone.scal_hess_updated = true

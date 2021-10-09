@@ -218,9 +218,11 @@ function update_lhs_fact(
     end
 
     # sqrt cones
+    # fill!(lhs, 0)
     if any(use_sqrt_hess_cones)
         idx = 1
         @inbounds for k in eachindex(cones)
+            # Cones.use_quadratic_oracles(cones[k]) && continue
             use_sqrt_hess_cones[k] || continue
             cone_k = cones[k]
             arr_k = GQ2_k[k]
@@ -240,12 +242,18 @@ function update_lhs_fact(
 
     # not sqrt cones
     @inbounds for k in eachindex(cones)
+        # Cones.use_quadratic_oracles(cones[k]) && continue
         use_sqrt_hess_cones[k] && continue
         arr_k = GQ2_k[k]
         prod_k = HGQ2_k[k]
         block_hess_prod!(prod_k, arr_k, cones[k], solver.mu)
         mul!(lhs, arr_k', prod_k, true, true)
     end
+    # @inbounds for k in eachindex(cones)
+    #     Cones.use_quadratic_oracles(cones[k]) || continue
+    #     arr_k = GQ2_k[k]'
+    #     Cones.quadratic_scal_hess_prod!(lhs, arr_k, cones[k], solver.mu)
+    # end
 
     # TODO try equilibration, iterative refinement etc like posvx/sysvx
     solver.time_upfact += @elapsed syssolver.fact =

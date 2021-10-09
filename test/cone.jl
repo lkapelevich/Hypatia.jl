@@ -116,6 +116,14 @@ function test_oracles(
     @test Cones.inv_scal_hess_prod!(prod_vec, grad, cone, mu) ≈
         dual_grad atol=tol rtol=tol
 
+    # np = 5
+    # arr = rand(T, np, cone.dim)
+    # prod = zeros(T, np, np)
+    # if Cones.use_quadratic_oracles(cone)
+    #     @test Cones.quadratic_scal_hess_prod!(prod, arr, cone, one(T)) ≈
+    #         arr * scal_hess * arr' atol=tol rtol=tol
+    # end
+
     # psi = dual_point + grad
     # proxsqr = dot(psi, Cones.inv_hess_prod!(prod_vec, psi, cone))
     # @test Cones.get_proxsqr(cone, one(T), false) ≈ proxsqr atol=tol rtol=tol
