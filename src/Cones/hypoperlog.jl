@@ -247,7 +247,7 @@ function update_inv_hess(cone::HypoPerLog)
 
     @inbounds for j in eachindex(w)
         j2 = 2 + j
-        Hi[j2, j2] += abs2(w[j])
+        Hi[j2, j2] = abs2(w[j])
     end
     @views mul!(Hi[3:end, 3:end], w, w', c2 / ζv, ζζvi)
 

@@ -193,7 +193,7 @@ function update_dual_grad(
         iter += 1
         # @show iter
     end
-    new_bound = Float64(new_bound)
+    new_bound = T(new_bound)
 
     cone.dual_grad[1] = new_bound
     # z * w / 2
