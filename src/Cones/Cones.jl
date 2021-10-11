@@ -253,6 +253,45 @@ function use_sqrt_scal_hess_oracles(arr_dim::Int, cone::Cone{T}, mu::T) where {T
     return (cone.scal_hess_fact isa Cholesky)
 end
 
+# naive fallback
+function update_dual_grad(cone::Cone{T}) where {T <: Real}
+    s = cone.point
+    z = cone.dual_point
+    g = grad(cone)
+    r = z + g
+    Hir = inv_hess_prod!(copy(r), r, cone)
+    n = sqrt(dot(r, Hir))
+    # curr = cone.dual_grad
+    # curr .= s
+    curr = copy(s)
+    old_s = copy(s)
+    # @show n
+    max_iter = 40
+    iter = 1
+    while n > 1000eps(T)
+        α = (n > 0.25 ? inv(1 + n) : 1)
+        curr -= Hir * α
+        load_point(cone, curr)
+        reset_data(cone)
+        update_feas(cone)
+        g = update_grad(cone)
+        r = z + g
+        Hir = inv_hess_prod!(copy(r), r, cone)
+        n = sqrt(dot(r, Hir))
+        # @show n
+        iter += 1
+        (iter > max_iter) && break
+    end
+    # curr *= -1
+    cone.dual_grad = -curr
+    load_point(cone, old_s)
+    reset_data(cone)
+    update_feas(cone)
+    update_grad(cone)
+    cone.dual_grad_updated = true
+    return cone.dual_grad
+end
+
 # only use if use_sqrt_hess_oracles is true
 function sqrt_hess_prod!(
     prod::AbstractVecOrMat,
