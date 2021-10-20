@@ -37,6 +37,8 @@ mutable struct Nonnegative{T <: Real} <: Cone{T}
     end
 end
 
+use_scal(::Nonnegative) = true
+
 use_dual_barrier(::Nonnegative) = false
 
 reset_data(cone::Nonnegative) = (cone.feas_updated = cone.grad_updated =
@@ -224,6 +226,15 @@ inv_hess_nz_idxs_col_tril(cone::Nonnegative, j::Int) = [j]
 
 # nonnegative is not primitive, so sum and max proximity measures differ
 function get_proxsqr(
+    cone::Nonnegative{T},
+    irtmu::T,
+    use_max_prox::Bool,
+    ) where {T <: Real}
+    aggfun = (use_max_prox ? maximum : sum)
+    return aggfun(abs2(si * zi * irtmu - 1) for (si, zi) in
+        zip(cone.point, cone.dual_point))
+end
+function get_proxcompl(
     cone::Nonnegative{T},
     irtmu::T,
     use_max_prox::Bool,

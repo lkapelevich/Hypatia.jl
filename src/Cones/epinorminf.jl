@@ -65,6 +65,8 @@ mutable struct EpiNormInf{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     end
 end
 
+use_scal(::EpiNormInf{T, T}) where {T <: Real} = true
+
 reset_data(cone::EpiNormInf) = (cone.feas_updated = cone.grad_updated =
     cone.dual_grad_updated =
     cone.hess_updated = cone.inv_hess_updated = cone.hess_aux_updated =
@@ -73,7 +75,8 @@ reset_data(cone::EpiNormInf) = (cone.feas_updated = cone.grad_updated =
 
 use_sqrt_hess_oracles(::Int, cone::EpiNormInf) = false
 
-use_sqrt_scal_hess_oracles(::Int, cone::EpiNormInf{T, T}, ::T) where {T <: Real} = false
+use_sqrt_scal_hess_oracles(::Int, cone::EpiNormInf{T, R}, ::T) where
+    {T <: Real, R <: RealOrComplex{T}} = false
 
 function setup_extra_data!(
     cone::EpiNormInf{T, R},
@@ -642,8 +645,6 @@ function dder3(
         4 * (
             u * (d1[1] * pdir[1] * 3 .- pdir[2:end] .* d1[2:end]) +
             w .* (-d1[1] .* pdir[2:end] - pdir[1] * d1[2:end] )
-            # d1[1] * -pdir[2:end] .* w .+ d1[1] * 3u * pdir[1] +
-            # -pdir[1] * w .* d1[2:end] - pdir[2:end] .* d1[2:end] * u
             ) ./ z.^2
         )
 
@@ -652,8 +653,10 @@ function dder3(
             (d1[1] * u .- d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
             ) ./ z.^3 +
         4 * (
-            -pdir[1] * w * d1[1] - pdir[2:end] * u * d1[1] +
-            -pdir[1] .* d1[2:end] * u .+ 3w .* pdir[2:end] .* d1[2:end]
+            u * (-pdir[1] * d1[2:end] - d1[1] * pdir[2:end]) +
+            w .* (-pdir[1] * d1[1] .+ 3 * pdir[2:end] .* d1[2:end])
+            # -pdir[1] * (w * d1[1] + d1[2:end] * u) -
+            # pdir[2:end] .* (u * d1[1] .- 3w .* d1[2:end])
             ) ./ z.^2
         )
     dder3 ./= 2

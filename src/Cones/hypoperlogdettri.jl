@@ -70,6 +70,8 @@ mutable struct HypoPerLogdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     end
 end
 
+use_scal(::HypoPerLogdetTri{T, T}) where {T <: Real} = true
+
 reset_data(cone::HypoPerLogdetTri) = (cone.feas_updated = cone.grad_updated =
     cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
     cone.inv_hess_updated = cone.inv_scal_hess_updated =

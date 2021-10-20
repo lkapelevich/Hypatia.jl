@@ -211,7 +211,7 @@ function check_cone_points(
     # min_prox = searcher.min_prox
     use_max_prox = searcher.use_max_prox
     # proxsqr_bound = abs2(searcher.prox_bound)
-    β = 0.01
+    β = T(0.01)
     # β = sqrt(sqrt(eps(T)))
 
     taukap = cand.tau[] * cand.kap[]
@@ -245,7 +245,7 @@ function check_cone_points(
     sortperm!(cone_order, searcher.cone_times, initialized = true) # stochastic
 
     irtmu = inv(sqrt(mu))
-    agg_proxsqr = taukap_rel
+    agg_proxsqr = taukap_rel # TODO agg related stuff is unneeded
     # aggfun = (use_max_prox ? max : +)
     aggfun = min
 
@@ -259,10 +259,15 @@ function check_cone_points(
         in_prox_k = false
         if Cones.is_feas(cone_k) && Cones.is_dual_feas(cone_k) &&
             Cones.check_numerics(cone_k)
-            proxsqr_k = Cones.get_proxsqr(cone_k, irtmu, use_max_prox)
-            agg_proxsqr = aggfun(agg_proxsqr, proxsqr_k)
-            # in_prox_k = (agg_proxsqr < proxsqr_bound)
-            in_prox_k = (agg_proxsqr > β)
+            # TODO come up with a proper way to do this
+            if Cones.use_scal(cone_k)
+                proxsqr_k = Cones.get_proxcompl(cone_k, irtmu, use_max_prox)
+                agg_proxsqr = aggfun(agg_proxsqr, proxsqr_k)
+                in_prox_k = (agg_proxsqr > β)
+            else
+                proxsqr_k = Cones.get_proxsqr(cone_k, irtmu, use_max_prox)
+                in_prox_k = (proxsqr_k < T(0.99))
+            end
         end
         searcher.cone_times[k] = time() - start_time
         in_prox_k || return false

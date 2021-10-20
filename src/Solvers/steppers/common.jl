@@ -34,31 +34,32 @@ function update_rhs_predadj(
     rhs.vec .= 0
 
     rteps = sqrt(eps(T))
-    irtrtmu = inv(sqrt(sqrt(solver.mu)))
+    # irtrtmu = inv(sqrt(sqrt(solver.mu)))
     for (k, cone_k) in enumerate(solver.model.cones)
-        # Cones.use_dder3(cone_k) || continue
-        # H_prim_dir_k = cone_k.vec1
-        # prim_k_scal = cone_k.vec2
-        # prim_dir_k = dir.primal_views[k]
-        #
-        # @. prim_k_scal = irtrtmu * prim_dir_k
-        # Cones.hess_prod_slow!(H_prim_dir_k, prim_dir_k, cone_k)
-        # dder3_k = Cones.dder3(cone_k, prim_k_scal)
-        #
-        # # only use third order deriv if it nearly satisfies an identity
-        # dot1 = dot(dder3_k, cone_k.point)
-        # dot2 = irtrtmu * dot(prim_k_scal, H_prim_dir_k)
-        # dder3_viol = abs(dot1 - dot2) / (rteps + abs(dot2))
-        # if dder3_viol < T(1e-4) # TODO tune
-        #     @. rhs.s_views[k] = H_prim_dir_k + dder3_k
-        # end
+        Cones.use_dder3(cone_k) || continue
         prim_dir_k = dir.primal_views[k] #* sqrt(solver.mu)
         dual_dir_k = dir.dual_views[k] #* sqrt(solver.mu)
         # @show typeof(cone_k)
         # @show -Cones.dder3(cone_k, cone_k.point, Cones.hess(cone_k) * cone_k.point) + Cones.grad(cone_k)
         # @assert -Cones.dder3(cone_k, cone_k.point, Cones.hess(cone_k) * cone_k.point) ≈ -Cones.grad(cone_k)
-        dder3_k = Cones.dder3(cone_k, prim_dir_k, dual_dir_k) #/ sqrt(solver.mu)
-        @. rhs.s_views[k] = dder3_k
+        if Cones.use_scal(cone_k)
+            dder3_k = Cones.dder3(cone_k, prim_dir_k, dual_dir_k) #/ sqrt(solver.mu)
+            @. rhs.s_views[k] = dder3_k
+        else
+            H_prim_dir_k = cone_k.vec1
+            prim_dir_k = dir.primal_views[k]
+
+            Cones.hess_prod_slow!(H_prim_dir_k, prim_dir_k, cone_k)
+            dder3_k = Cones.dder3(cone_k, prim_dir_k)
+
+            # only use third order deriv if it nearly satisfies an identity
+            dot1 = dot(dder3_k, cone_k.point)
+            dot2 = dot(prim_dir_k, H_prim_dir_k)
+            dder3_viol = abs(dot1 - dot2) / (rteps + abs(dot2))
+            if dder3_viol < T(1e-4) # TODO tune
+                @. rhs.s_views[k] = (H_prim_dir_k + dder3_k) * solver.mu
+            end
+        end
     end
 
     rhs.kap[] = -dir.tau[] * dir.kap[] / solver.point.tau[]

@@ -57,6 +57,8 @@ end
 
 use_dual_barrier(::EpiPerSquare) = false
 
+use_scal(::EpiPerSquare) = true
+
 reset_data(cone::EpiPerSquare) = (cone.feas_updated = cone.dual_feas_updated =
     cone.grad_updated = cone.dual_grad_updated = cone.nt_updated =
     cone.hess_updated = cone.inv_hess_updated = cone.sqrt_hess_prod_updated =

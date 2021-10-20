@@ -61,6 +61,8 @@ end
 
 use_dual_barrier(::PosSemidefTri) = false
 
+use_scal(::PosSemidefTri{T, T}) where {T <: Real} = true
+
 reset_data(cone::PosSemidefTri) = (cone.feas_updated = cone.dual_feas_updated =
     cone.grad_updated =
     cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =

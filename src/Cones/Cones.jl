@@ -27,6 +27,8 @@ A proper cone.
 """
 abstract type Cone{T <: Real} end
 
+use_scal(cone::Cone) = false
+
 """
 $(SIGNATURES)
 
@@ -80,9 +82,6 @@ dual point.
 dual_grad(cone::Cone) = (cone.dual_grad_updated ? cone.dual_grad :
     update_dual_grad(cone))
 
- # FIXME
-update_dual_grad(cone) = nothing
-
 """
 $(SIGNATURES)
 
@@ -100,6 +99,9 @@ $(SIGNATURES)
 .
 """
 function scal_hess(cone::Cone{T}, mu::T) where T
+    if !use_scal(cone)
+        return mu * hess(cone)
+    end
     cone.scal_hess_updated && return cone.scal_hess
     return update_scal_hess(cone, mu)
 end
@@ -121,6 +123,9 @@ $(SIGNATURES)
 .
 """
 function inv_scal_hess(cone::Cone{T}, mu::T) where T
+    if !use_scal(cone)
+        return inv_hess(cone) / mu
+    end
     cone.inv_scal_hess_updated && return cone.inv_scal_hess
     return update_inv_scal_hess(cone, mu)
 end
@@ -216,6 +221,7 @@ function alloc_hess!(cone::Cone{T}) where {T <: Real}
 end
 
 function alloc_scal_hess!(cone::Cone{T}) where {T <: Real}
+    @assert use_scal(cone)
     dim = dimension(cone)
     cone.scal_hess = Symmetric(zeros(T, dim, dim), :U)
     return
@@ -228,6 +234,7 @@ function alloc_inv_hess!(cone::Cone{T}) where {T <: Real}
 end
 
 function alloc_inv_scal_hess!(cone::Cone{T}) where {T <: Real}
+    @assert use_scal(cone)
     dim = dimension(cone)
     cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
     return
@@ -245,7 +252,14 @@ function use_sqrt_hess_oracles(arr_dim::Int, cone::Cone)
     return (cone.hess_fact isa Cholesky)
 end
 
-function use_sqrt_scal_hess_oracles(arr_dim::Int, cone::Cone{T}, mu::T) where {T <: Real}
+function use_sqrt_scal_hess_oracles(
+    arr_dim::Int,
+    cone::Cone{T},
+    mu::T
+    ) where {T <: Real}
+    if !use_scal(cone)
+        return use_sqrt_hess_oracles(arr_dim, cone)
+    end
     if !cone.scal_hess_fact_updated
         (arr_dim < dimension(cone)) && return false # array is small
         update_scal_hess_fact(cone, mu) || return false
@@ -305,11 +319,15 @@ end
 
 # NOTE worse convergence than no sqrts
 function sqrt_scal_hess_prod!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
     cone::Cone{T},
     mu::T,
     ) where T
+    if !use_scal(cone)
+        sqrt_hess_prod!(prod, arr, cone)
+        return prod .*= sqrt(mu)
+    end
     @assert cone.scal_hess_fact_updated
     mul!(prod, cone.scal_hess_fact.U, arr)
 
@@ -329,10 +347,15 @@ function inv_sqrt_hess_prod!(
 end
 
 function inv_sqrt_scal_hess_prod!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::Cone,
-    )
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::Cone{T},
+    mu::T,
+    ) where T
+    if !use_scal(cone)
+        inv_sqrt_hess_prod!(prod, arr, cone)
+        return prod ./= sqrt(mu)
+    end
     @assert cone.scal_hess_fact_updated
     ldiv!(prod, cone.scal_hess_fact.U', arr)
     return prod
@@ -372,6 +395,9 @@ function update_hess_fact(cone::Cone{T}) where {T <: Real}
 end
 
 function update_scal_hess_fact(cone::Cone{T}, mu::T) where {T <: Real}
+    if !use_scal(cone)
+        update_hess_fact(cone)
+    end
     cone.scal_hess_fact_updated && return true
     cone.scal_hess_fact_updated = true
     if update_hess_fact(cone) && cone.hess_fact isa Cholesky
@@ -386,16 +412,16 @@ function update_scal_hess_fact(cone::Cone{T}, mu::T) where {T <: Real}
         cone_mu = c1 / nu
         #
         tmu = dot(ts, tz) / nu
+        tol = sqrt(eps(T))
         @assert dot(s, tz) ≈ T(nu)
         @assert dot(z, ts) ≈ T(nu)
-        @assert cone_mu * tmu >= 1
+        @assert cone_mu * tmu >= 1 - tol
         #
         ds = s - cone_mu * ts
         dz = z - cone_mu * tz
         Hts = old_hess * ts
 
         fact = cone.scal_hess_fact = copy(cone.hess_fact)
-        tol = sqrt(eps(T))
         if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
             (dot(ts, Hts) - nu * tmu^2 < tol)
             fact.factors .*= sqrt(mu)
@@ -468,6 +494,24 @@ end
 # compute squared proximity value for a cone
 # NOTE if cone is not primitive (eg nonnegative), sum and max proximities differ
 function get_proxsqr(
+    cone::Cone{T},
+    irtmu::T,
+    ::Bool,
+    negtol::T = sqrt(eps(T)),
+    ) where {T <: Real}
+    g = grad(cone)
+    vec1 = cone.vec1
+    vec2 = cone.vec2
+    mu = inv(abs2(irtmu)) # TODO pass in mu
+
+    @. vec1 = cone.dual_point + g * mu
+    inv_hess_prod!(vec2, vec1, cone)
+    prox_sqr = dot(vec2, vec1)
+    (prox_sqr < -negtol * length(g)) && return T(Inf) # should be positive
+
+    return abs(prox_sqr)
+end
+function get_proxcompl(
     cone::Cone{T},
     irtmu::T,
     ::Bool,
@@ -559,6 +603,7 @@ end
 # end
 
 function update_scal_hess(cone::Cone{T}, mu::T) where T
+    @assert use_scal(cone)
     if !isdefined(cone, :scal_hess)
         dim = dimension(cone)
         cone.scal_hess = Symmetric(zeros(T, dim, dim), :U)
@@ -578,17 +623,17 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
     nu = get_nu(cone)
     mu = dot(s, z) / nu
     tmu = dot(ts, tz) / nu
-    @assert mu * tmu >= 1
+    tol = sqrt(eps(T))
+    @assert mu * tmu >= 1 - tol
 
     ds = s - mu * ts
     dz = z - mu * tz
     Hts = old_hess * ts
-    tol = sqrt(eps(T))
     # tol = 1000eps(T)
     if (norm(ds) < tol) || (norm(dz) < tol) || (mu * tmu - 1 < tol) ||
         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
         # @show "~~ skipping updates ~~"
-        H .= old_hess_mu
+        H .= old_hess * mu
     else
         v1 = z + mu * tz + dz / (mu * tmu - 1)
         v2 = Hts - tmu * tz
@@ -618,6 +663,7 @@ function update_scal_hess(cone::Cone{T}, mu::T) where T
 end
 
 function update_inv_scal_hess(cone::Cone{T}, mu::T) where T
+    @assert use_scal(cone)
     if !isdefined(cone, :inv_scal_hess)
         dim = dimension(cone)
         cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
@@ -634,6 +680,10 @@ function scal_hess_prod!(
     mu::T,
     slow::Bool = false,
     ) where T
+    if !use_scal(cone)
+        slow ? hess_prod_slow!(prod, arr, cone) : hess_prod!(prod, arr, cone)
+        return prod .*= mu
+    end
     # prod .= scal_hess(cone, mu) * arr
 
     rtmu = sqrt(mu)
@@ -688,6 +738,10 @@ function inv_scal_hess_prod!(
     cone::Cone{T},
     mu::T,
     ) where T
+    if !use_scal(cone)
+        inv_hess_prod!(prod, arr, cone)
+        return prod ./= mu
+    end
     # prod .= cholesky(scal_hess(cone, mu)) \ arr
     update_scal_hess_fact(cone, mu)
     ldiv!(prod, cone.scal_hess_fact, arr)

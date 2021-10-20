@@ -77,6 +77,8 @@ mutable struct EpiNormSpectral{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     end
 end
 
+use_scal(::EpiNormSpectral{T, T}) where {T <: Real} = true
+
 reset_data(cone::EpiNormSpectral) = (cone.feas_updated = cone.grad_updated =
     cone.dual_grad_updated =
     cone.hess_updated = cone.scal_hess_updated =
@@ -357,6 +359,43 @@ function dder3(cone::EpiNormSpectral, dir::AbstractVector)
 
     return dder3
 end
+
+# function dder3(
+#     cone::EpiNormSpectral{T, T},
+#     pdir::AbstractVector{T},
+#     ddir::AbstractVector{T},
+#     ) where {T <: Real}
+#     dder3 = cone.dder3
+#     point = cone.point
+#     d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+#     u = point[1]
+#     w = cone.w
+#     Z = cone.Z
+#
+#     dder3[1] = pdir[1] * 2 * (cone.n - 1) / u^3 * d1[1] +
+#         sum(
+#         16u * (
+#             (-d1[1] * u .+ d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
+#         ) ./ z.^3 +
+#         4 * (
+#             u * (d1[1] * pdir[1] * 3 .- pdir[2:end] .* d1[2:end]) +
+#             w .* (-d1[1] .* pdir[2:end] - pdir[1] * d1[2:end] )
+#             ) ./ z.^2
+#         )
+#
+#     dder3[2:end] .= (
+#         16 * w .* (
+#             (d1[1] * u .- d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
+#             ) ./ z.^3 +
+#         4 * (
+#             u * (-pdir[1] * d1[2:end] - d1[1] * pdir[2:end]) +
+#             w .* (-pdir[1] * d1[1] .+ 3 * pdir[2:end] .* d1[2:end])
+#             ) ./ z.^2
+#         )
+#     dder3 ./= 2
+#
+#     return dder3
+# end
 
 function bar(cone::EpiNormSpectral{T, T}) where {T <: Real}
     (d1, d2) = (cone.d1, cone.d2)

@@ -50,6 +50,8 @@ end
 
 use_dual_barrier(::EpiNormEucl) = false
 
+use_scal(::EpiNormEucl) = true
+
 reset_data(cone::EpiNormEucl) = (cone.feas_updated = cone.dual_feas_updated =
     cone.grad_updated = cone.dual_grad_updated = cone.hess_updated =
     cone.scal_hess_updated =  cone.inv_scal_hess_updated =

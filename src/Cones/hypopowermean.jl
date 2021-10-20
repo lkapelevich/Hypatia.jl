@@ -57,6 +57,8 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
     end
 end
 
+use_scal(::HypoPowerMean) = true
+
 reset_data(cone::HypoPowerMean) = (cone.feas_updated = cone.grad_updated =
     cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
     cone.inv_hess_updated = cone.inv_scal_hess_updated =
