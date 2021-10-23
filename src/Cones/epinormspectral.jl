@@ -360,42 +360,62 @@ function dder3(cone::EpiNormSpectral, dir::AbstractVector)
     return dder3
 end
 
-# function dder3(
-#     cone::EpiNormSpectral{T, T},
-#     pdir::AbstractVector{T},
-#     ddir::AbstractVector{T},
-#     ) where {T <: Real}
-#     dder3 = cone.dder3
-#     point = cone.point
-#     d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
-#     u = point[1]
-#     w = cone.w
-#     Z = cone.Z
-#
-#     dder3[1] = pdir[1] * 2 * (cone.n - 1) / u^3 * d1[1] +
-#         sum(
-#         16u * (
-#             (-d1[1] * u .+ d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
-#         ) ./ z.^3 +
-#         4 * (
-#             u * (d1[1] * pdir[1] * 3 .- pdir[2:end] .* d1[2:end]) +
-#             w .* (-d1[1] .* pdir[2:end] - pdir[1] * d1[2:end] )
-#             ) ./ z.^2
-#         )
-#
-#     dder3[2:end] .= (
-#         16 * w .* (
-#             (d1[1] * u .- d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
-#             ) ./ z.^3 +
-#         4 * (
-#             u * (-pdir[1] * d1[2:end] - d1[1] * pdir[2:end]) +
-#             w .* (-pdir[1] * d1[1] .+ 3 * pdir[2:end] .* d1[2:end])
-#             ) ./ z.^2
-#         )
-#     dder3 ./= 2
-#
-#     return dder3
-# end
+gkron(i, j, k, l, X, Y) = X[i, k] * Y[j, l]
+akron(i, j, k, l, X, Y) = X[i, l] * Y[k, j] + X[k, j] * Y[i, l]
+
+function dder3(
+    cone::EpiNormSpectral{T, T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    point = cone.point
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+    u = cone.point[1]
+    W = cone.W
+    dder3 = cone.dder3
+
+    Zi = Hermitian(cone.Zi, :U)
+    tau = cone.tau
+    Zitau = cone.Zitau
+    WtauI = cone.WtauI
+
+    p = pdir[1]
+    x = d1[1]
+    r = pdir[2:end]
+    z = d1[2:end]
+    @views r_mat = vec_copyto!(cone.tempd1d2, r)
+    @views z_mat = vec_copyto!(copy(cone.tempd1d2), z)
+
+    Zi2 = Zi ^ 2
+    fact_Z = cone.fact_Z
+    Zi2W = fact_Z \ (fact_Z \ W)
+    Zi3W = fact_Z \ Zi2W
+    WZi2W = W' * Zi ^ 2 * W
+    WtauI = W' * tau + I
+    dder3[1] =
+        p * x * (6 * u * tr(Zi2) - 8 * u^3 * tr(Zi^3) + (cone.d1 - 1) / u^3) +
+        2 * dot(p * z_mat + x * r_mat, fact_Z \ (fact_Z \ (4 * u^2 * tau - W))) +
+        -2u * dot(z_mat,
+            Zi2 * r_mat * WtauI + Zi * r_mat * tau' * tau + tau * r_mat' * Zi2W + Zi2W * r_mat' * tau
+            )
+
+    dirmat = p * z_mat + x * r_mat
+    temp1 = Zi * (r_mat * tau' * z_mat + z_mat * tau' * r_mat) * WtauI +
+        Zi * (r_mat * WtauI * z_mat' + z_mat * WtauI * r_mat') * tau +
+        tau * (r_mat' * Zi * z_mat + z_mat' * Zi * r_mat) * WtauI
+    temp2 = r_mat * tau' * z_mat + z_mat * tau' * r_mat
+    dder3_mat = p * x * (8 * u^2 * Zi3W - 2 * Zi2W) +
+        -2u * (
+            Zi2 * dirmat * (W' * tau + I) +
+            Zi * dirmat * tau' * tau +
+            tau * dirmat' * Zi2W + Zi2W * dirmat' * tau
+            ) +
+        temp1 + tau * temp2' * tau
+    @views vec_copyto!(dder3[2:end], dder3_mat)
+
+
+    return dder3
+end
 
 function bar(cone::EpiNormSpectral{T, T}) where {T <: Real}
     (d1, d2) = (cone.d1, cone.d2)
