@@ -43,7 +43,7 @@ insts["various"] = [
     ((50, 32, 2, true, false, false),),
     ((50, 32, 2, true, false, false), :ExpPSD),
     ((50, 32, 2, true, false, false), :SOCExpPSD),
-    # ((:iris, 6, true, true, true),),
-    # ((:cancer, 4, true, true, true),),
+    ((:iris, 6, true, true, true),),
+    ((:cancer, 4, true, true, true),),
     ]
 return (DensityEstJuMP, insts)

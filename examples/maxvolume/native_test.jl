@@ -15,9 +15,9 @@ insts["fast"] = [
     ((1000, true, false, false),),
     ]
 insts["various"] = [
-    # ((750, true, false, false),),
+    ((750, true, false, false),),
     ((750, false, false, true),),
-    # ((1500, true, false, false),),
-    # ((1500, false, false, true),),
+    ((1500, true, false, false),),
+    ((1500, false, false, true),),
     ]
 return (MaxVolumeNative, insts)
