@@ -203,14 +203,26 @@ function update_dual_grad(
     new_bound = (lower_bound + upper_bound) / 2
     iter = 0
     while abs(h(new_bound)) > 1000eps(T)
-        new_bound -= h(new_bound) / hp(new_bound)
+        new_bound -= h(BigFloat(new_bound)) / hp(BigFloat(new_bound))
         iter += 1
-        # @show iter
+        if iter > 200
+            error("too many iters in dual grad")
+        end
+    end
+    new_bound = T(new_bound)
+
+    zw2 = copy(w)
+    for i in eachindex(w)
+        if abs(w[i]) .< 100eps(T)
+            zw2[i] = new_bound^2 * w[i] / 2
+        else
+            zw2[i] = (-1 + sqrt(1 + abs2(w[i]) * new_bound^2)) / w[i]
+        end
     end
 
-    z = (-2 .+ 2 * sqrt.(1 .+ abs2.(w) * new_bound^2)) ./ abs2.(w)
+    # z = (-2 .+ 2 * sqrt.(1 .+ abs2.(w) * new_bound^2)) ./ abs2.(w)
     cone.dual_grad[1] = new_bound
-    cone.dual_grad[2:end] .= vec(dual_W_svd.U * Diagonal(z / 2 .* w) * dual_W_svd.Vt)
+    cone.dual_grad[2:end] .= vec(dual_W_svd.U * Diagonal(zw2) * dual_W_svd.Vt)
 
     cone.dual_grad_updated = true
     return cone.dual_grad
@@ -360,9 +372,6 @@ function dder3(cone::EpiNormSpectral, dir::AbstractVector)
     return dder3
 end
 
-gkron(i, j, k, l, X, Y) = X[i, k] * Y[j, l]
-akron(i, j, k, l, X, Y) = X[i, l] * Y[k, j] + X[k, j] * Y[i, l]
-
 function dder3(
     cone::EpiNormSpectral{T, T},
     pdir::AbstractVector{T},
@@ -375,6 +384,8 @@ function dder3(
     dder3 = cone.dder3
 
     Zi = Hermitian(cone.Zi, :U)
+    tempd1d1 = cone.tempd1d1
+    trZi3 = sum(abs2, ldiv!(tempd1d1, cone.fact_Z.L, Zi))
     tau = cone.tau
     Zitau = cone.Zitau
     WtauI = cone.WtauI
@@ -386,31 +397,33 @@ function dder3(
     @views r_mat = vec_copyto!(cone.tempd1d2, r)
     @views z_mat = vec_copyto!(copy(cone.tempd1d2), z)
 
-    Zi2 = Zi ^ 2
     fact_Z = cone.fact_Z
     Zi2W = fact_Z \ (fact_Z \ W)
     Zi3W = fact_Z \ Zi2W
-    WZi2W = W' * Zi ^ 2 * W
-    WtauI = W' * tau + I
-    dder3[1] =
-        p * x * (6 * u * tr(Zi2) - 8 * u^3 * tr(Zi^3) + (cone.d1 - 1) / u^3) +
-        2 * dot(p * z_mat + x * r_mat, fact_Z \ (fact_Z \ (4 * u^2 * tau - W))) +
-        -2u * dot(z_mat,
-            Zi2 * r_mat * WtauI + Zi * r_mat * tau' * tau + tau * r_mat' * Zi2W + Zi2W * r_mat' * tau
-            )
 
-    dirmat = p * z_mat + x * r_mat
-    temp1 = Zi * (r_mat * tau' * z_mat + z_mat * tau' * r_mat) * WtauI +
-        Zi * (r_mat * WtauI * z_mat' + z_mat * WtauI * r_mat') * tau +
-        tau * (r_mat' * Zi * z_mat + z_mat' * Zi * r_mat) * WtauI
-    temp2 = r_mat * tau' * z_mat + z_mat * tau' * r_mat
+    tauz = tau * z_mat'
+    taur = tau * r_mat'
+    rztau = taur' * z_mat + tauz' * r_mat
+    rzWtauI = r_mat * WtauI * z_mat'
+    temp0 = p * tauz' + x * taur'
+    Ziz = fact_Z \ z_mat
+    Zir = fact_Z \ r_mat
+    temp1 = p * Ziz + x * Zir
+    rzZi = r_mat' * Ziz
     dder3_mat = p * x * (8 * u^2 * Zi3W - 2 * Zi2W) +
-        -2u * (
-            Zi2 * dirmat * (W' * tau + I) +
-            Zi * dirmat * tau' * tau +
-            tau * dirmat' * Zi2W + Zi2W * dirmat' * tau
-            ) +
-        temp1 + tau * temp2' * tau
+        Zi * (-2u * (temp0 + temp0') + rzWtauI + rzWtauI') * tau +
+        Zi * (-2u * temp1 + rztau) * WtauI +
+        tau * (rzZi + rzZi') * WtauI +
+        tau * (rztau' - 2u * temp1') * tau
+
+    dder3[1] =
+        p * x * (6 * u * cone.trZi2 - 8 * u^3 * trZi3 + (cone.d1 - 1) / u^3) +
+        2 * dot(temp1, 4 * u^2 * Zitau - tau) +
+        -2u * dot(z_mat,
+        Zi * Zir * WtauI + (Zir * tau' + tau * Zir' + Zi * taur) * tau
+        )
+
+
     @views vec_copyto!(dder3[2:end], dder3_mat)
 
 

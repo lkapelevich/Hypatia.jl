@@ -79,10 +79,10 @@ function step(stepper::SymmStepper{T}, solver::Solver{T}) where {T <: Real}
     solver.time_getdir += @elapsed get_directions(stepper, solver)
     copyto!(dir_predadj.vec, dir.vec)
 
-    @assert point.kap[] * dir.tau[] + point.tau[] * dir.kap[] ≈
-        -dir_pred.tau[] * dir_pred.kap[]
-    @assert point.kap[] * dir_predadj.tau[] + point.tau[] * dir_predadj.kap[] ≈
-        -dir_pred.tau[] * dir_pred.kap[]
+    # @assert point.kap[] * dir.tau[] + point.tau[] * dir.kap[] ≈
+    #     -dir_pred.tau[] * dir_pred.kap[]
+    # @assert point.kap[] * dir_predadj.tau[] + point.tau[] * dir_predadj.kap[] ≈
+    #     -dir_pred.tau[] * dir_pred.kap[]
     # @assert point.z .* dir_predadj.s + point.s .* dir_predadj.z ≈
     #     -dir_pred.s .* dir_pred.z
 

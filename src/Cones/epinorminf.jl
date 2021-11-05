@@ -194,7 +194,9 @@ function update_dual_grad(
         # new_bound -= h(new_bound) / hp(new_bound)
         new_bound -= h(BigFloat(new_bound)) / hp(BigFloat(new_bound))
         iter += 1
-        # @show iter
+        if iter > 200
+            error("too many iters in dual grad")
+        end
     end
     new_bound = T(new_bound)
 
@@ -598,29 +600,8 @@ function dder3(
     dder3 = cone.dder3
     point = cone.point
     d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
-    d2 = zero(d1)
-    d2[1] -= (cone.n - 1) / point[1]^2 * d1[1]
-
-    # do SOC for each i
-    for i in 2:(cone.n + 1)
-        dist = (abs2(point[1]) - abs2(point[i])) / 2
-        d2[1] += (abs2(point[1]) + abs2(point[i])) / abs2(dist) * d1[1] / 2
-        d2[1] += -point[1] * point[i] * d1[i] / abs2(dist)
-        d2[i] = -point[1] * point[i] / abs2(dist) * d1[1] +
-            point[i] * dot(point[i], d1[i]) / abs2(dist) + d1[i] / dist
-
-        @views jdot_p_s = point[1] * pdir[1] - point[i] * pdir[i]
-        @. dder3[[1, i]] = jdot_p_s * ddir[[1, i]]
-        dot_s_z = pdir[1] * ddir[1] + pdir[i] * ddir[i]
-        dot_p_z = point[1] * ddir[1] + point[i] * ddir[i]
-        dder3[1] += dot_s_z * point[1] - dot_p_z * pdir[1]
-        dder3[i] += -dot_s_z * point[i] + dot_p_z * pdir[i]
-        dder3[[1, i]] ./= -dist * 2
-    end
-    # @show d2 ./ ddir
     u = point[1]
     w = cone.w
-    # H = zero(cone.hess).data
     z = cone.den * 2
     #
     #
@@ -660,21 +641,6 @@ function dder3(
             ) ./ z.^2
         )
     dder3 ./= 2
-    # @show Symmetric(H) ./ ()
-
-    #
-    # d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
-    # barrier = bar(cone)
-    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
-    # true_deriv = ForwardDiff.gradient(
-    #     s2 -> ForwardDiff.derivative(
-    #         s -> ForwardDiff.derivative(
-    #             t -> bardir(s2, s, t),
-    #             0),
-    #         0),
-    #     cone.point) / 2
-    # @show true_deriv ./ dder3
-
 
     return dder3
 end
