@@ -391,59 +391,55 @@ function dder3(cone::GeneralizedPower{T},
     @views w_dder3 = dder3[w_idxs]
 
     d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
-
     α = cone.α
-
     @views p = pdir[u_idxs]
     @views r = pdir[w_idxs]
     @views a = d1[u_idxs]
     @views b = d1[w_idxs]
-
     z = cone.z
     zw = cone.zw
     zuw = z / zw
-    zuw_tw = zuw * (zuw - 1)
     aui = 2 * α ./ u
+    dot_wb = dot(w, b)
+    dot_wr = dot(w, r)
+    dot_rb = dot(r, b)
+    dot_auia = dot(aui, a)
+    dot_auip = dot(aui, p)
+    dot_wr_wb = dot_wr * dot_wb
+
+    udu = cone.tempu1
+    @. udu = p / u * a / u
+    sumaudu2 = 2 * sum(α_i * udu_i for (α_i, udu_i) in zip(α, udu))
+    c1 = (2 * zuw - 1) * dot_auip * dot_auia + sumaudu2
+    zuw1 = 2 * zuw - 1
+    c10 = 4 * dot_wr_wb / zw + dot_rb
 
     u_dder3 .=
-        # uuu
-        zuw * (1 - zuw) * aui .*
-        ((2 * zuw - 1) * dot(aui, p) * dot(aui, a) + dot(aui ./ u, a .* p) .+ (dot(aui, a) * p + dot(aui, p) * a) ./ u) +
-        -2 * ((1 .- α) ./ u + zuw * aui) ./ u ./ u .* a .* p +
-        # uuw
-        2 * zuw / zw * aui .*
-        (
-        dot(w, r) * (
-        (2 * zuw - 1) * dot(aui, a) .+
-        a ./ u .+
-        # uww
-        -2 / zw * dot(w, b)
-        ) +
-        #
-        dot(w, b) * (
-        (2 * zuw - 1) * dot(aui, p) .+
-        p ./ u .+
-        # uww
-        -2 / zw * dot(w, r)
-        ) .-
-        sum(r .* b)
+        zuw * (1 - zuw) * aui .* (c1 .+ (dot_auia * p + dot_auip * a) ./ u) / 2 +
+        ((α .- 1) ./ u - zuw * aui) ./ u ./ u .* a .* p +
+        zuw / zw * aui .* (
+        zuw1 * (dot_wr * dot_auia + dot_wb * dot_auip) .+
+        (dot_wr * a + dot_wb * p) ./ u .- c10
         )
 
-    # w[wk] / zw / zw
     w_dder3 .=
-        # uuw
-        2 * zuw / zw * w .* ((2 * zuw - 1) * dot(aui, a) * dot(aui, p) + dot(aui ./ u, a .* p)) +
-        # uww
-        -2 * zuw / zw * dot(aui, a) * (4  / zw * dot(w, r) * w + r) +
-        -2 * zuw / zw * dot(aui, p) * (4  / zw * dot(w, b) * w + b) +
-        # www
-        4 / zw / zw * (
-        4 * dot(w, b) * dot(w, r) / zw * w +
-        dot(w, b) .* r +
-        dot(w, r) .* b +
-        sum(b .* r) .* w
-        )
-    dder3 ./= 2
+        zuw * (
+        w .* (c1 - 4 * (dot_auia * dot_wr + dot_auip * dot_wb) / zw) -
+        dot_auia * r - dot_auip * b) +
+        2 * (c10 * w + dot_wb .* r + dot_wr .* b) / zw
+    w_dder3 ./= zw
+
+
+    # barrier = bar(cone)
+    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
+    # true_dder3 = ForwardDiff.gradient(
+    #     s2 -> ForwardDiff.derivative(
+    #         s -> ForwardDiff.derivative(
+    #             t -> bardir(s2, s, t),
+    #             0),
+    #         0),
+    #     cone.point) / 2
+    # @show true_dder3 ./ dder3
 
     return cone.dder3
 end
