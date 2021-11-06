@@ -46,3 +46,41 @@ using LambertW
 function omegawright(z::BigFloat)
     return lambertw(exp(z))
 end
+
+function rootnewton(
+    lower::T,
+    upper::T,
+    f::Function,
+    g::Function,
+    h_abs::Function,
+    max_dev::Function;
+    max_dev_init::T = max_dev(lower, upper),
+    ) where {T <: Real}
+    C = max_dev_init
+    gap = upper - lower
+    # bisection until quadratic convergence is guaranteed
+    while C * abs(gap) > 1
+        # uses the fact that f is nondecreasing
+        new_bound = (lower + upper) / 2
+        if f(new_bound) > 0
+            upper = new_bound
+        elseif f(new_bound) < 0
+            lower = new_bound
+        else
+            return new_bound
+        end
+        C = max_dev(lower, upper)
+        gap = upper - lower
+    end
+    new_bound = (lower + upper) / 2
+    iter = 0
+    while abs(f(new_bound)) > 1000eps(T)
+        new_bound -= f(BigFloat(new_bound)) / g(BigFloat(new_bound))
+        iter += 1
+        if iter > 200
+            @warn "too many iters in dual grad"
+            break
+        end
+    end
+    return T(new_bound)
+end

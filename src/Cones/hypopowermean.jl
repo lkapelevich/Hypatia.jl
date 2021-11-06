@@ -145,36 +145,16 @@ function update_dual_grad(cone::HypoPowerMean{T}) where {T <: Real}
     α = cone.α
     sumlog = sum(α_i * log(w_i) for (α_i, w_i) in zip(α, w))
 
-    fval(y) = sum(ai * log(y - u * ai) for ai in α) - sumlog
-    fgrad(y) = sum(ai / (y - u * ai) for ai in α)
-    hess_abs(y) = sum(ai / (y - u * ai)^2 for ai in α)
-
+    f(y) = sum(ai * log(y - u * ai) for ai in α) - sumlog
+    fp(y) = sum(ai / (y - u * ai) for ai in α)
+    fpp_abs(y) = sum(ai / (y - u * ai)^2 for ai in α)
+    max_dev(l, u) = fpp_abs(l) / fp(u) / 2
     lower_bound = zero(T)
     upper_bound = exp(sumlog) + u / d
-
-    C = sum(α.^(-2)) / u^2 /
+    max_dev_init = sum(α.^(-2)) / u^2 /
         (2 * upper_bound * sum(inv.(1 .- u * α * upper_bound)))
-    gap = upper_bound
-
-    while C * gap > 1
-        # uses the fact that function is nondecreasing
-        new_bound = (lower_bound + upper_bound) / 2
-        if fval(new_bound) >= 0
-            upper_bound = new_bound
-        else
-            lower_bound = new_bound
-        end
-        C = hess_abs(lower_bound) / fgrad(upper_bound) / 2
-        gap = upper_bound - lower_bound
-    end
-
-    new_bound = (lower_bound + upper_bound) / 2
-    iter = 0
-    while abs(fval(new_bound)) > 1000eps(T)
-        new_bound -= fval(new_bound) / fgrad(new_bound)
-        iter += 1
-    end
-    # @show iter
+    new_bound = rootnewton(lower_bound, upper_bound, f, fp, fpp_abs, max_dev,
+        max_dev_init = max_dev_init)
 
     dual_g_ϕ = inv(new_bound)
     dg[1] = -inv(u) - dual_g_ϕ

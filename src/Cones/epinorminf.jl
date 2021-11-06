@@ -159,48 +159,15 @@ function update_grad(
     return cone.grad
 end
 
-# TODO refactor with power cones
-function update_dual_grad(
-    cone::EpiNormInf{T, R},
-    ) where {T <: Real, R <: RealOrComplex{T}}
-    u = cone.dual_point[1]
-    w = vec_copyto!(copy(cone.w), cone.dual_point[2:end])
-    n = cone.n
-
+function epinorminf_dg(u::T, w::AbstractVector{T}, n::Int, dual_den::T) where T
     h(y) = u * y + sum(sqrt(1 + abs2(w[i]) * y^2) for i in 1:n) + 1
     hp(y) = u + sum(abs2(w[i]) * y * (1 + abs2(w[i]) * y^2)^(-1/2) for i in 1:n)
     hpp(y) = sum(abs2(w[i]) / (1 + abs2(w[i]) * y^2)^(3 / 2) for i in 1:n)
+    max_dev(l, u) = hpp(l) / hp(u) / 2
+    lower = -(n + 1) / dual_den
+    upper = -inv(dual_den)
+    new_bound = rootnewton(lower, upper, h, hp, hpp, max_dev)
 
-    lower_bound = -(n + 1) / cone.dual_den
-    upper_bound = -inv(cone.dual_den)
-    C = hpp(upper_bound) / hp(lower_bound) / 2
-    gap = upper_bound - lower_bound
-    while C * gap > 1
-        new_bound = (lower_bound + upper_bound) / 2
-        if h(new_bound) > 0
-            upper_bound = new_bound
-        else
-            lower_bound = new_bound
-        end
-        C = hpp(upper_bound) / hp(lower_bound) / 2
-        @assert lower_bound < upper_bound < 0
-        gap = upper_bound - lower_bound
-        # @show gap
-    end
-
-    new_bound = (lower_bound + upper_bound) / 2
-    iter = 0
-    while abs(h(new_bound)) > 1000eps(T)
-        # new_bound -= h(new_bound) / hp(new_bound)
-        new_bound -= h(BigFloat(new_bound)) / hp(BigFloat(new_bound))
-        iter += 1
-        if iter > 200
-            error("too many iters in dual grad")
-        end
-    end
-    new_bound = T(new_bound)
-
-    cone.dual_grad[1] = new_bound
     # z * w / 2
     zw2 = copy(w)
     for i in eachindex(w)
@@ -210,6 +177,18 @@ function update_dual_grad(
             zw2[i] = (-1 + sqrt(1 + abs2(w[i]) * new_bound^2)) / w[i]
         end
     end
+    return (new_bound, zw2)
+end
+
+# FIXME for reals only
+function update_dual_grad(
+    cone::EpiNormInf{T, R},
+    ) where {T <: Real, R <: RealOrComplex{T}}
+    u = cone.dual_point[1]
+    w = vec_copyto!(copy(cone.w), cone.dual_point[2:end])
+
+    (new_bound, zw2) = epinorminf_dg(u, w, cone.n, cone.dual_den)
+    cone.dual_grad[1] = new_bound
     @views vec_copyto!(cone.dual_grad[2:end], zw2)
 
     cone.dual_grad_updated = true

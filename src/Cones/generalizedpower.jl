@@ -144,52 +144,21 @@ function conj_tgp(pr::Vector{T}, alpha::Vector{T}, k::T) where {T <: Real}
     (p, r) = (pr[1], pr[2:end])
 
     phi(w) = exp(sum(2 * alpha .* log.(w)))
-    # k = phi(r)
     d = length(alpha)
     inner_bound = -1 / p - (1 + sign(p) * 1 / p * sqrt(k * (d^2 / p^2 * k + d^2 - 1))) / (p / d - d * k / p)
     gamma = abs(p) / sqrt(phi(r ./ alpha))
     outer_bound = (1 + d) * gamma / (1 - gamma) / p
-    # @show inner_bound, outer_bound
 
-    fval(y) = sum(2 * ai * log(2 * ai * y^2 + (1 + ai) * 2 * y / p) for ai in alpha) -
+    f(y) = sum(2 * ai * log(2 * ai * y^2 + (1 + ai) * 2 * y / p) for ai in alpha) -
         log(k) - log(2 * y / p + y^2) - 2 * log(2 * y / p)
-    grad(y) = 2 * sum(ai^2 / (ai * y + (1 + ai) / p) for ai in alpha) -
+    fp(y) = 2 * sum(ai^2 / (ai * y + (1 + ai) / p) for ai in alpha) -
         2 * (y + 1 / p) / y / (y + 2 / p)
-    hess_bound(y) = 2 * sum(ai^3 / (ai * y + (1 + ai) / p)^2 for ai in alpha) + 2 * (y^2 + 2 / p^2) / (y^2 * (y + 2 / p)^2)
+    fpp_abs(y) = 2 * sum(ai^3 / (ai * y + (1 + ai) / p)^2 for ai in alpha) + 2 * (y^2 + 2 / p^2) / (y^2 * (y + 2 / p)^2)
+    @assert fpp_abs(inner_bound) > fpp_abs(outer_bound) > 0
 
-    @assert hess_bound(inner_bound) > hess_bound(outer_bound) > 0
-    C = hess_bound(inner_bound) /
-        # abs(1 / p / (inner_bound * (inner_bound + 2 / p)))
+    max_dev(outer, inner) = fpp_abs(inner_bound) /
         (4 * abs((outer_bound + 1 / p) / (outer_bound * (outer_bound + 2 / p))))
-    gap = abs(inner_bound - outer_bound)
-
-    while (C * gap > 1) #&& (gap > 1e-8) # think about latter
-        # @show C
-        # @show gap
-        # @show fval(inner_bound)
-        # @show fval(outer_bound)
-        # uses the fact that function has known monotonicity
-        new_bound = (inner_bound + outer_bound) / 2
-        if fval(new_bound) >= 0
-            inner_bound = new_bound
-        else
-            outer_bound = new_bound
-        end
-
-        C = hess_bound(inner_bound) /
-            (4 * abs((outer_bound + 1 / p) / (outer_bound * (outer_bound + 2 / p))))
-        @assert hess_bound(inner_bound) > hess_bound(outer_bound) > 0
-        gap = abs(inner_bound - outer_bound)
-    end
-
-    new_bound = (inner_bound + outer_bound) / 2
-    iter = 0
-    while abs(fval(new_bound)) > 1000eps(T)
-        new_bound -= fval(new_bound) / grad(new_bound)
-        iter += 1
-        # @show iter
-    end
-    # @show fval(new_bound)
+    new_bound = rootnewton(outer_bound, inner_bound, f, fp, fpp_abs, max_dev)
 
     return new_bound
 end

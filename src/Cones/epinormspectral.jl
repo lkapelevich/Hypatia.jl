@@ -170,57 +170,15 @@ function update_grad(cone::EpiNormSpectral)
     return cone.grad
 end
 
-# TODO refactor with power cones and epinorminf
 function update_dual_grad(
     cone::EpiNormSpectral{T, R},
     ) where {T <: Real, R <: RealOrComplex{T}}
-    d1 = cone.d1
     u = cone.dual_point[1]
     dual_W_svd = cone.dual_W_svd
     w = dual_W_svd.S
-    dual_z = cone.dual_z
 
-    h(y) = u * y + sum(sqrt(1 + abs2(w[i]) * y^2) for i in 1:d1) + 1
-    hp(y) = u + sum(abs2(w[i]) * y * (1 + abs2(w[i]) * y^2)^(-1/2) for i in 1:d1)
-    hpp(y) = sum(abs2(w[i]) / (1 + abs2(w[i]) * y^2)^(3 / 2) for i in 1:d1)
+    (new_bound, zw2) = epinorminf_dg(u, w, cone.d1, cone.dual_z)
 
-    lower_bound = -(d1 + 1) / dual_z
-    upper_bound = -inv(dual_z)
-    C = hpp(upper_bound) / hp(lower_bound) / 2
-    gap = upper_bound - lower_bound
-    while C * gap > 1
-        new_bound = (lower_bound + upper_bound) / 2
-        if h(new_bound) > 0
-            upper_bound = new_bound
-        else
-            lower_bound = new_bound
-        end
-        C = hpp(upper_bound) / hp(lower_bound) / 2
-        @assert lower_bound < upper_bound < 0
-        gap = upper_bound - lower_bound
-    end
-
-    new_bound = (lower_bound + upper_bound) / 2
-    iter = 0
-    while abs(h(new_bound)) > 1000eps(T)
-        new_bound -= h(BigFloat(new_bound)) / hp(BigFloat(new_bound))
-        iter += 1
-        if iter > 200
-            error("too many iters in dual grad")
-        end
-    end
-    new_bound = T(new_bound)
-
-    zw2 = copy(w)
-    for i in eachindex(w)
-        if abs(w[i]) .< 100eps(T)
-            zw2[i] = new_bound^2 * w[i] / 2
-        else
-            zw2[i] = (-1 + sqrt(1 + abs2(w[i]) * new_bound^2)) / w[i]
-        end
-    end
-
-    # z = (-2 .+ 2 * sqrt.(1 .+ abs2.(w) * new_bound^2)) ./ abs2.(w)
     cone.dual_grad[1] = new_bound
     cone.dual_grad[2:end] .= vec(dual_W_svd.U * Diagonal(zw2) * dual_W_svd.Vt)
 
