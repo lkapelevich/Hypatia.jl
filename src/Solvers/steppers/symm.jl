@@ -208,11 +208,9 @@ function check_cone_points(
     cand = stepper.temp
     szk = searcher.szk
     cones = model.cones
-    # min_prox = searcher.min_prox
     use_max_prox = searcher.use_max_prox
-    # proxsqr_bound = abs2(searcher.prox_bound)
     β = T(0.01)
-    # β = sqrt(sqrt(eps(T)))
+    # β = T(0.5)
 
     taukap = cand.tau[] * cand.kap[]
     (min(cand.tau[], cand.kap[], taukap) < eps(T)) && return false
@@ -225,19 +223,7 @@ function check_cone_points(
     (mu < eps(T)) && return false
 
     taukap_rel = taukap / mu
-    # (taukap_rel < min_prox) && return false
-    # taukap_proxsqr = abs2(taukap_rel - 1)
-    # (taukap_proxsqr > proxsqr_bound) && return false
     (taukap_rel < β) && return false
-
-
-    # for k in eachindex(cones)
-    #     nu_k = Cones.get_nu(cones[k])
-    #     sz_rel_k = szk[k] / (mu * nu_k)
-    #     if (sz_rel_k < min_prox) || (nu_k * abs2(sz_rel_k - 1) > proxsqr_bound)
-    #         return false
-    #     end
-    # end
 
     # order the cones by how long it takes to check proximity condition and
     # iterate in that order, to improve efficiency
@@ -245,9 +231,7 @@ function check_cone_points(
     sortperm!(cone_order, searcher.cone_times, initialized = true) # stochastic
 
     irtmu = inv(sqrt(mu))
-    agg_proxsqr = taukap_rel # TODO agg related stuff is unneeded
-    # aggfun = (use_max_prox ? max : +)
-    aggfun = min
+    agg_proxcompl = taukap_rel
 
     for k in cone_order
         cone_k = cones[k]
@@ -258,12 +242,12 @@ function check_cone_points(
 
         in_prox_k = false
         if Cones.is_feas(cone_k) && Cones.is_dual_feas(cone_k) &&
-            Cones.check_numerics(cone_k)
+            Cones.check_numerics(cone_k, mu)
             # TODO come up with a proper way to do this
             if Cones.use_scal(cone_k)
                 proxsqr_k = Cones.get_proxcompl(cone_k, irtmu, use_max_prox)
-                agg_proxsqr = aggfun(agg_proxsqr, proxsqr_k)
-                in_prox_k = (agg_proxsqr > β)
+                agg_proxcompl = min(agg_proxcompl, proxsqr_k)
+                in_prox_k = (agg_proxcompl > β)
             else
                 proxsqr_k = Cones.get_proxsqr(cone_k, irtmu, use_max_prox)
                 in_prox_k = (proxsqr_k < T(0.99))
@@ -273,8 +257,8 @@ function check_cone_points(
         in_prox_k || return false
     end
 
-    # searcher.prox = sqrt(agg_proxsqr)
-    searcher.prox = agg_proxsqr
+    # not informative of the proximity for cones that don't use scaling
+    searcher.prox = agg_proxcompl
     return true
 end
 
