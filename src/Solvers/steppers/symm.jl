@@ -3,6 +3,7 @@ Symm predict and center stepper
 =#
 
 mutable struct SymmStepper{T <: Real} <: Stepper{T}
+    use_curve_search::Bool
     shift_sched::Int
     searcher_options
 
@@ -17,13 +18,16 @@ mutable struct SymmStepper{T <: Real} <: Stepper{T}
     dir_temp::Vector{T}
 
     searcher::StepSearcher{T}
+    cent_only::Bool
     pred_only::Bool
 
     function SymmStepper{T}(;
+        use_curve_search::Bool = true,
         shift_sched::Int = 0,
         searcher_options...
         ) where {T <: Real}
         stepper = new{T}()
+        stepper.use_curve_search = use_curve_search
         stepper.shift_sched = shift_sched
         stepper.searcher_options = searcher_options
         return stepper
@@ -47,6 +51,7 @@ function load(stepper::SymmStepper{T}, solver::Solver{T}) where {T <: Real}
 
     stepper.searcher = StepSearcher{T}(model; stepper.searcher_options...)
     stepper.pred_only = true
+    stepper.cent_only = false
 
     stepper.gamma = 0
 
@@ -104,12 +109,17 @@ function step(stepper::SymmStepper{T}, solver::Solver{T}) where {T <: Real}
     # @show check
 
     # search with Symm directions and adjustments
-    stepper.pred_only = true
-    solver.time_search += @elapsed alpha = search_alpha(point, model, stepper)
-    stepper.gamma = (1 - alpha) * min(abs2(1 - alpha), T(0.25))
-    # stepper.gamma = (1 - alpha) * min(abs2(1 - alpha), one(T))
-    stepper.pred_only = false
-    solver.time_search += @elapsed alpha = search_alpha(point, model, stepper)
+    if stepper.use_curve_search
+        # TODO this is actually 1 - gamma, decide on how to handle namings
+        solver.time_search += @elapsed alpha = search_alpha(point, model, stepper)
+    else
+        stepper.pred_only = true
+        solver.time_search += @elapsed alpha = search_alpha(point, model, stepper)
+        # stepper.gamma = (1 - alpha) * min(abs2(1 - alpha), T(0.25))
+        stepper.gamma = (1 - alpha) * min(abs2(1 - alpha), one(T))
+        stepper.pred_only = false
+        solver.time_search += @elapsed alpha = search_alpha(point, model, stepper)
+    end
 
     # gamma = stepper.gamma
     # s_comb = (1 - gamma) * dir_pred.s + gamma * dir_cent.s + dir_predadj.s
@@ -119,11 +129,12 @@ function step(stepper::SymmStepper{T}, solver::Solver{T}) where {T <: Real}
     # @show dot(s_comb, z_comb) + t_comb * k_comb
 
     if iszero(alpha)
-        # solver.verbose && println("trying centering")
-        # stepper.gamma = 1
+        solver.verbose && println("trying centering")
+        stepper.cent_only = true
+        stepper.gamma = 1
         # dir_predadj.vec .= 0
-        # solver.time_search += @elapsed alpha =
-        #     search_alpha(point, model, stepper)
+        solver.time_search += @elapsed alpha =
+            search_alpha(point, model, stepper)
 
         if iszero(alpha)
             @warn("cannot step in combined direction")
@@ -135,7 +146,11 @@ function step(stepper::SymmStepper{T}, solver::Solver{T}) where {T <: Real}
 
     # step
     update_stepper_points(alpha, point, stepper, false)
-    stepper.prev_alpha = alpha
+    if stepper.use_curve_search
+        stepper.prev_alpha = 1 - cbrt(stepper.gamma)
+    else
+        stepper.prev_alpha = alpha
+    end
 
     return true
 end
@@ -148,7 +163,6 @@ function update_stepper_points(
     stepper::SymmStepper{T},
     ztsk_only::Bool,
     ) where {T <: Real}
-    gamma = stepper.gamma
     if ztsk_only
         cand = stepper.temp.ztsk
         copyto!(cand, point.ztsk)
@@ -160,9 +174,17 @@ function update_stepper_points(
         dir_pred = stepper.dir_pred.vec
     end
 
-    if stepper.pred_only
+    if stepper.cent_only
+        @. cand += alpha * dir_cent
+    elseif stepper.use_curve_search
+        gamma = stepper.gamma = 1 - alpha
+        alpha2 = 1 - cbrt(gamma)
+        dir_predadj = (ztsk_only ? stepper.dir_predadj.ztsk : stepper.dir_predadj.vec)
+        @. cand += alpha2 * (dir_cent * gamma + (1 - gamma) * dir_pred + dir_predadj)
+    elseif stepper.pred_only
         @. cand += alpha * dir_pred
     else
+        gamma = stepper.gamma
         dir_predadj = (ztsk_only ? stepper.dir_predadj.ztsk : stepper.dir_predadj.vec)
         @. cand += alpha * (dir_cent * gamma + (1 - gamma) * dir_pred + dir_predadj)
     end
