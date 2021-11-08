@@ -19,8 +19,7 @@ default_options = (
     default_tol_relax = 10,
     # stepper = Solvers.CombinedStepper{Float64}(),
     # stepper = Solvers.PredOrCentStepper{Float64}(),
-    # stepper = Solvers.SymmStepper{BigFloat}(),
-    stepper = Solvers.SymmStepper{BigFloat}(),
+    stepper = Solvers.SymmStepper{Float64}(),
     iter_limit = 250,
     )
 
@@ -30,8 +29,7 @@ inst_sets = [
     # ("minimal", Float32, 60),
     # ("minimal", BigFloat, 60),
     # ("fast", Float64, 60),
-    # ("various", BigFloat, 120),
-    ("various", BigFloat, 120),
+    ("various", Float64, 120),
     ]
 
 perf = Examples.setup_benchmark_dataframe()

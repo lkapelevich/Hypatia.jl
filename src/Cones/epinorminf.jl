@@ -481,7 +481,7 @@ function inv_scal_hess_prod!(
 
     ds = s - cone_mu * ts
     dz = z - cone_mu * tz
-    Hts = old_hess * ts
+    Hts = hess_prod!(copy(ts), ts, cone)
     tol = sqrt(eps(T))
     # tol = 1000eps(T)
     if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||

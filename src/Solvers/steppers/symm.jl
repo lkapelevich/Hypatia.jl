@@ -105,11 +105,10 @@ function step(stepper::SymmStepper{T}, solver::Solver{T}) where {T <: Real}
 
     # search with Symm directions and adjustments
     stepper.pred_only = true
-    stepper.searcher.prox_bound = 1e-10 # TODO use
     solver.time_search += @elapsed alpha = search_alpha(point, model, stepper)
-    stepper.gamma = (1 - alpha) * min(abs2(1 - alpha), 0.25)
+    stepper.gamma = (1 - alpha) * min(abs2(1 - alpha), T(0.25))
+    # stepper.gamma = (1 - alpha) * min(abs2(1 - alpha), one(T))
     stepper.pred_only = false
-    stepper.searcher.prox_bound = 0.1 # TODO use
     solver.time_search += @elapsed alpha = search_alpha(point, model, stepper)
 
     # gamma = stepper.gamma
