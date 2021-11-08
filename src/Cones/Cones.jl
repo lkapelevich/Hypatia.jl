@@ -476,6 +476,7 @@ function check_numerics(
     cone::Cone{T},
     gtol::T = sqrt(sqrt(eps(T))),
     Htol::T = 10sqrt(gtol),
+    mu::T = one(T),
     ) where {T <: Real}
     g = grad(cone)
     dim = length(g)
@@ -487,6 +488,15 @@ function check_numerics(
     # inv hess check
     Hig = inv_hess_prod!(cone.vec1, g, cone)
     (abs(1 - dot(Hig, g) / nu) > Htol * dim) && return false
+
+    # if use_scal(cone)
+        # Hs = scal_hess_prod!(cone.vec1, cone.point, cone, mu)
+        # dg = dual_grad(cone)
+        # @show dot(dg, Hs) + nu
+        # (abs(1 - dot(dg, Hs) / nu) > Htol * dim) && return false
+        # Tss = dder3(cone, cone.point, grad(cone))
+        # (abs(1 - dot(Tss, cone.point) / nu) > Htol * dim) && return false
+    # end
 
     return true
 end
@@ -518,19 +528,11 @@ function get_proxcompl(
     negtol::T = sqrt(eps(T)),
     ) where {T <: Real}
     g = grad(cone)
-    # vec1 = cone.vec1
-    # vec2 = cone.vec2
-    #
-    # @. vec1 = irtmu * cone.dual_point + g
-    # inv_hess_prod!(vec2, vec1, cone)
-    # prox_sqr = dot(vec2, vec1)
-    # (prox_sqr < -negtol * length(g)) && return T(Inf) # should be positive
     dg = dual_grad(cone)
     nu = get_nu(cone)
     mu = inv(abs2(irtmu))
     return nu / dot(g, dg) / mu
 
-    # return abs(prox_sqr)
 end
 
 # TODO

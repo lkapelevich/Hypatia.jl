@@ -426,7 +426,7 @@ function dder3(cone::GeneralizedPower{T},
         zuw * (
         w .* (c1 - 4 * (dot_auia * dot_wr + dot_auip * dot_wb) / zw) -
         dot_auia * r - dot_auip * b) +
-        2 * (c10 * w + dot_wb .* r + dot_wr .* b) / zw
+        2 * (c10 * w + dot_wb * r + dot_wr * b) / zw
     w_dder3 ./= zw
 
 
@@ -440,6 +440,7 @@ function dder3(cone::GeneralizedPower{T},
     #         0),
     #     cone.point) / 2
     # @show true_dder3 ./ dder3
+    # dder3 .= true_dder3
 
     return cone.dder3
 end
