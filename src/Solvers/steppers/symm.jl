@@ -262,8 +262,8 @@ function check_cone_points(
         Cones.reset_data(cone_k)
 
         in_prox_k = false
-        if Cones.is_feas(cone_k) && Cones.is_dual_feas(cone_k) &&
-            Cones.check_numerics(cone_k, mu)
+        if Cones.is_feas(cone_k) && Cones.is_dual_feas(cone_k) # &&
+            # Cones.check_numerics(cone_k, mu)
             # TODO come up with a proper way to do this
             if Cones.use_scal(cone_k)
                 proxsqr_k = Cones.get_proxcompl(cone_k, irtmu, use_max_prox)
