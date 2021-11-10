@@ -32,7 +32,7 @@ total_shift = 1e-4
 piter_shift = 1e-5
 
 # file locations
-bench_file = joinpath(@__DIR__, "raw", "bench.csv")
+bench_file = joinpath(@__DIR__, "raw", "dev.csv")
 output_dir = mkpath(joinpath(@__DIR__, "analysis"))
 tex_dir = mkpath(joinpath(output_dir, "tex"))
 stats_dir = mkpath(joinpath(output_dir, "stats"))
@@ -161,6 +161,19 @@ function preprocess_df()
 
     # only keep wanted instance set
     filter!(t -> (t.inst_set == keep_set), all_df)
+
+    # only care about instances for cones we do scaling for
+    scal_cones = ["Nonnegative", "EpiNormEucl", "PosSemidefTri", "EpiNormInf",
+        "HypoPerLog", "HypoPowermean", "HypoGeomean", "HypoPerLogdetTri",
+        "HypoRootdetTri", "EpiPerSquare", "GeneralizedPower", "EpiNormSpectral"]
+    conj_cones = ["EpiNormInf", "HypoPerLog", "HypoPowermean", "HypoGeomean",
+        "HypoPerLogdetTri", "HypoRootdetTri", "GeneralizedPower",
+        "EpiNormSpectral"]
+    # also manually remove instances with complex versions of scal_cones
+    cones_ok(s) = (s2 = eval(Meta.parse(s)); all(t -> (t in scal_cones), s2) &&
+        any(t -> (t in conj_cones), s2))
+    only_scal = filter(t -> cones_ok(t.cone_types), all_df)
+    CSV.write(joinpath(stats_dir, "scalcones.csv"), only_scal)
 
     # get enhancement name from solver options
     transform!(all_df, :solver_options => ByRow(get_enhancement) => :enhancement)

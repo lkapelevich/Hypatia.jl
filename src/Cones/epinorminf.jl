@@ -467,9 +467,6 @@ function inv_scal_hess_prod!(
     mu::T,
     ) where {T <: Real}
 
-    hess(cone)
-
-    old_hess = copy(cone.hess)
     s = cone.point
     z = cone.dual_point
     ts = -dual_grad(cone)
@@ -491,12 +488,11 @@ function inv_scal_hess_prod!(
         prod ./= mu
     else
         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
-        v2 = Hts - tmu * tz
+        v2 = sqrt(cone_mu) * (Hts - tmu * tz) / sqrt(dot(ts, Hts) - nu * tmu^2)
 
         c1 = 1 / sqrt(2 * cone_mu * nu)
-        c2 = sqrt(cone_mu / (dot(ts, Hts) - nu * tmu^2))
-        U = hcat(c1 * dz, c1 * v1, -c2 * v2)
-        V = hcat(c1 * v1, c1 * dz, c2 * v2)'
+        U = hcat(c1 * dz, c1 * v1, -v2)
+        V = hcat(c1 * v1, c1 * dz, v2)'
 
         t1 = inv_hess_prod!(copy(arr), arr, cone) / cone_mu
         t2 = V * t1

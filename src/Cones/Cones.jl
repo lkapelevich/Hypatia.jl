@@ -483,20 +483,25 @@ function check_numerics(
     nu = get_nu(cone)
 
     # grad check
-    (abs(1 + dot(g, cone.point) / nu) > gtol * dim) && return false
+    # (abs(1 + dot(g, cone.point) / nu) > gtol * dim) && return false
 
     # inv hess check
     Hig = inv_hess_prod!(cone.vec1, g, cone)
-    (abs(1 - dot(Hig, g) / nu) > Htol * dim) && return false
+    # (abs(1 - dot(Hig, g) / nu) > Htol * dim) && return false
 
-    # if use_scal(cone)
-        # Hs = scal_hess_prod!(cone.vec1, cone.point, cone, mu)
-        # dg = dual_grad(cone)
+    # @show nameof(typeof(cone)), use_dual_barrier(cone)
+
+    if use_scal(cone)
+        Hs = scal_hess_prod!(cone.vec1, cone.point, cone, mu)
+        dg = dual_grad(cone)
         # @show dot(dg, Hs) + nu
+        Hiz = inv_scal_hess_prod!(cone.vec1, cone.dual_point, cone, mu)
+        # @show dot(g, Hiz) + nu
+
         # (abs(1 - dot(dg, Hs) / nu) > Htol * dim) && return false
         # Tss = dder3(cone, cone.point, grad(cone))
         # (abs(1 - dot(Tss, cone.point) / nu) > Htol * dim) && return false
-    # end
+    end
 
     return true
 end
@@ -694,8 +699,9 @@ function scal_hess_prod!(
     ts = -dual_grad(cone)
     tz = -grad(cone)
 
+    dot_sz = dot(s, z)
     nu = get_nu(cone)
-    cone_mu = dot(s, z) / nu
+    cone_mu = dot_sz / nu
     tmu = dot(ts, tz) / nu
 
     ds = s - cone_mu * ts
@@ -725,8 +731,8 @@ function scal_hess_prod!(
             d1 = dot(v1, arr_j)
             d2 = dot(dz, arr_j)
             d3 = dot(v2, arr_j)
-            @. prod_j += d1 / (2 * cone_mu * nu) * dz
-            @. prod_j += d2 / (2 * cone_mu * nu) * v1
+            @. prod_j += d1 / (2 * dot_sz) * dz
+            @. prod_j += d2 / (2 * dot_sz) * v1
             @. prod_j -= d3 * cone_mu / (tsHts - nu * tmu^2) .* v2
         end
     end
