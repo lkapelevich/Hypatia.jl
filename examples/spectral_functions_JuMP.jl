@@ -237,13 +237,18 @@ function add_homog_spectral(
     x = JuMP.@variable(model, [1:(d - 2)])
 
     JuMP.@constraint(model, vcat(w[1], w[2], x[1]) in MOI.PowerCone(1.0 / 2))
+    # JuMP.@constraint(model, vcat(x[1], w[1], w[2]) in Hypatia.HypoPowerMeanCone{Float64}([0.5, 0.5]))
     for i in 3:(d - 1)
         aff_new_i = vcat(w[i], x[i - 2], x[i - 1])
         JuMP.@constraint(model, aff_new_i in MOI.PowerCone(1.0 / i))
+        # aff_new_i = vcat(x[i - 1], w[i], x[i - 2])
+        # JuMP.@constraint(model, aff_new_i in Hypatia.HypoPowerMeanCone{Float64}([1 - 1.0 / i, 1.0 / i]))
     end
     aff_new = vcat(w[end], x[end], y - aff[1])
     JuMP.@constraint(model, aff_new in MOI.PowerCone(1.0 / d))
-
+    # aff_new = vcat(y - aff[1], w[end], x[end])
+    # JuMP.@constraint(model, aff_new in Hypatia.HypoPowerMeanCone{Float64}([1 - 1.0 / d, 1.0 / d]))
+    
     return
 end
 
@@ -589,6 +594,7 @@ function extend_atom(
     JuMP.@constraint(model, θ >= 0)
     aff_new = vcat(aff[3], aff[2], aff[1] - θ)
     JuMP.@constraint(model, aff_new in MOI.PowerCone(p))
+    # JuMP.@constraint(model, reverse(aff_new) in Hypatia.HypoPowerMeanCone{Float64}(1 - p, p))
     return
 end
 
@@ -630,6 +636,7 @@ function extend_atom(
     @assert 1 < p <= 2
     JuMP.@constraint(model, aff[3] >= 0)
     JuMP.@constraint(model, collect(aff) in MOI.PowerCone(inv(p)))
+    # JuMP.@constraint(model, reverse(collect(aff)) in Hypatia.HypoPowerMeanCone{Float64}([1 - inv(p), inv(p)]))
     return
 end
 
