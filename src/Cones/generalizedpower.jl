@@ -89,6 +89,8 @@ get_nu(cone::GeneralizedPower) = length(cone.α) + 1
 
 use_sqrt_hess_oracles(::Int, cone::GeneralizedPower) = false
 
+use_sqrt_scal_hess_oracles(::Int, ::GeneralizedPower{T}, ::T) where {T <: Real} = false
+
 function set_initial_point!(arr::AbstractVector, cone::GeneralizedPower)
     @. arr[cone.u_idxs] = sqrt(1 + cone.α)
     arr[cone.w_idxs] .= 0
