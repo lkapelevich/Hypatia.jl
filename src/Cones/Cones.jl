@@ -495,7 +495,7 @@ function check_numerics(
         Hs = scal_hess_prod!(cone.vec1, cone.point, cone, mu)
         dg = dual_grad(cone)
         # @show dot(dg, Hs) + nu
-        Hiz = inv_scal_hess_prod!(cone.vec1, cone.dual_point, cone, mu)
+        # Hiz = inv_scal_hess_prod!(cone.vec1, cone.dual_point, cone, mu)
         # @show dot(g, Hiz) + nu
 
         # (abs(1 - dot(dg, Hs) / nu) > Htol * dim) && return false

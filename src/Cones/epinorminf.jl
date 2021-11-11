@@ -488,7 +488,8 @@ function inv_scal_hess_prod!(
         prod ./= mu
     else
         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
-        v2 = sqrt(cone_mu) * (Hts - tmu * tz) / sqrt(dot(ts, Hts) - nu * tmu^2)
+        # TODO dot(ts, Hts) - nu * tmu^2 should be negative
+        v2 = sqrt(cone_mu) * (Hts - tmu * tz) / sqrt(abs(dot(ts, Hts) - nu * tmu^2))
 
         c1 = 1 / sqrt(2 * cone_mu * nu)
         U = hcat(c1 * dz, c1 * v1, -v2)
