@@ -5,10 +5,7 @@
 # Series approximations can be found in the book chapter ``The Wright ω Function''
 # by Corless, R. M. and Jeffrey, D. J.
 
-# need to be in the right type or rationals
-# consts_1 = # annoying
-# consts_infty = [(-1)^i // factorial(j) * length(Combinatorics.partitions(i + j, i + 1)) for j in 1:20 for i in 1:j] # wrong
-# consts_neginfty = [(-i)^(i - 1) / factorial(i) for i in 1:20]
+# FIXME broken for breakpoints e.g. z = 1
 
 function omegawright(z::T) where T
     z = float(z)
@@ -46,6 +43,45 @@ using LambertW
 function omegawright(z::BigFloat)
     return lambertw(exp(z))
 end
+
+# using Combinatorics
+# constants should be cached
+# # Eulerian numbers of the second kind
+# # complicated explicit formula in "Explicit formulas for the Eulerian
+# # numbers of the second kind"
+# function eulerian2(n::Int, m::Int)
+#     iszero(n) && return (iszero(m) ? 1 : 0)
+#     return (2n - m - 1) * eulerian2(n - 1, m - 1) + (m + 1) * eulerian2(n - 1, m)
+# end
+#
+# function omegawright(z::T) where {T <: Real}
+#     num_terms = div(precision(float(z)), 53) * 5
+#     if z < -2
+#         t = exp(z)
+#         w = sum((-T(i))^(i - 1) / T(factorial(i)) * t^i for i in 1:num_terms)
+#     elseif z < 1 + π
+#         z1 = z - 1
+#         w = 1 + sum(
+#             sum(eulerian2(i - 1, k) * (-1)^k for k in 0:(i - 1)) /
+#             T(2)^(2i - 1) / T(factorial(i)) * z1^i
+#             for i in 1:num_terms)
+#     else
+#         lz = log(z)
+#         function consts_infty(i::Int, j::Int)
+#             (i == j == 0) && return 0
+#             return (-1)^i / T(factorial(j)) * Combinatorics.stirlings1(i + j, i + 1)
+#         end
+#         w = z - lz + sum(consts_infty(i, j) * lz^j / z^(i + j) for
+#             i in 0:(num_terms - 2) for j in 0:(num_terms - 2))
+#     end
+#     r = z - w - log(w)
+#     for k in 1:2
+#         t = (1 + w) * (1 + w + 2 / 3 * r)
+#         w = w * (1 + r / (1 + w) * (t - r / 2) / (t - r))
+#         r = (2 * w * (w - 4) - 1) / 72 / (1 + w)^6 * r^4
+#     end
+#     return w
+# end
 
 function rootnewton(
     lower::T,
