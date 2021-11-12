@@ -119,7 +119,7 @@ function update_lhs(syssolver::NaiveSparseSystemSolver, solver::Solver)
         end
     end
     tau = solver.point.tau[]
-    syssolver.lhs.nzval[syssolver.mtt_idx] = solver.mu / tau / tau
+    syssolver.lhs.nzval[syssolver.mtt_idx] = solver.point.kap[] / tau
 
     solver.time_upfact += @elapsed update_fact(syssolver.fact_cache,
         syssolver.lhs)
@@ -190,10 +190,10 @@ end
 
 function update_lhs(syssolver::NaiveDenseSystemSolver, solver::Solver)
     for (cone_k, lhs_H_k) in zip(solver.model.cones, syssolver.lhs_H_k)
-        copyto!(lhs_H_k, Cones.hess(cone_k))
+        copyto!(lhs_H_k, Cones.scal_hess(cone_k))
     end
     tau = solver.point.tau[]
-    syssolver.lhs[end, syssolver.tau_row] = solver.mu / tau / tau
+    syssolver.lhs[end, syssolver.tau_row] = solver.point.kap[] / tau
 
     solver.time_upfact += @elapsed syssolver.fact =
         nonsymm_fact_copy!(syssolver.lhs_fact, syssolver.lhs)

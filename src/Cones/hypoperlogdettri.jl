@@ -16,25 +16,38 @@ mutable struct HypoPerLogdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     hess_fact_updated::Bool
+    scal_hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
+    scal_hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
+    scal_hess_fact::Factorization{T}
 
     ϕ::T
     ζ::T
+    dual_ϕ::T
     mat::Matrix{R}
+    dual_mat::Matrix{R}
     fact_W::Cholesky{R}
+    dual_fact_W::Cholesky{R}
     Wi::Matrix{R}
+    dual_Wi::Matrix{R}
     Wi_vec::Vector{T}
     mat2::Matrix{R}
     mat3::Matrix{R}
@@ -55,13 +68,23 @@ mutable struct HypoPerLogdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     end
 end
 
+use_scal(::HypoPerLogdetTri{T, T}) where {T <: Real} = true
+
+reset_data(cone::HypoPerLogdetTri) = (cone.feas_updated = cone.grad_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated =
+    cone.hess_fact_updated = cone.scal_hess_fact_updated = false)
+
 function setup_extra_data!(
     cone::HypoPerLogdetTri{T, R},
     ) where {T <: Real, R <: RealOrComplex{T}}
     dim = cone.dim
     d = cone.d
     cone.mat = zeros(R, d, d)
+    cone.dual_mat = zeros(R, d, d)
+    cone.dual_grad = zeros(R, cone.dim)
     cone.Wi = zeros(R, d, d)
+    cone.dual_Wi = zeros(R, d, d)
     cone.Wi_vec = zeros(T, dim - 2)
     cone.mat2 = zeros(R, d, d)
     cone.mat3 = zeros(R, d, d)
@@ -70,6 +93,8 @@ function setup_extra_data!(
 end
 
 get_nu(cone::HypoPerLogdetTri) = 2 + cone.d
+
+use_sqrt_scal_hess_oracles(::Int, cone::HypoPerLogdetTri) = false
 
 function set_initial_point!(
     arr::AbstractVector{T},
@@ -115,10 +140,12 @@ function is_dual_feas(cone::HypoPerLogdetTri{T}) where {T <: Real}
 
     if u < -eps(T)
         v = cone.dual_point[2]
-        @views svec_to_smat!(cone.mat2, cone.dual_point[3:end], cone.rt2)
-        fact = cholesky!(Hermitian(cone.mat2, :U), check = false)
+        @views svec_to_smat!(cone.dual_mat, cone.dual_point[3:end], cone.rt2)
+        fact = cone.dual_fact_W = cholesky!(Hermitian(cone.dual_mat, :U),
+            check = false)
         if isposdef(fact)
-            return (v - u * (logdet(fact) + cone.d * (1 - log(-u))) > eps(T))
+            cone.dual_ϕ = logdet(fact) - cone.d * log(-u)
+            return (v - u * (cone.dual_ϕ + cone.d) > eps(T))
         end
     end
 
@@ -142,6 +169,27 @@ function update_grad(cone::HypoPerLogdetTri)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::HypoPerLogdetTri{T}) where {T <: Real}
+    @assert cone.is_feas
+    u = cone.dual_point[1]
+    v = cone.dual_point[2]
+    dg = cone.dual_grad
+    d = cone.d
+
+    β = 1 + d - v / u + cone.dual_ϕ
+    bomega = d * omegawright(β / d - log(T(d)))
+    @assert bomega + d * log(bomega) ≈ β
+
+    dg[1] = (-d - 2 + v / u + 2 * bomega) / (u * (1 - bomega))
+    dg[2] = -1 / (u * (1 - bomega))
+    inv_fact!(cone.dual_Wi, cone.dual_fact_W)
+    @views smat_to_svec!(dg[3:end], cone.dual_Wi, cone.rt2)
+    @views dg[3:end] .*= bomega / (1 - bomega)
+
+    cone.dual_grad_updated = true
+    return dg
 end
 
 function update_hess(cone::HypoPerLogdetTri)
@@ -348,6 +396,63 @@ function dder3(cone::HypoPerLogdetTri, dir::AbstractVector)
     rdiv!(w_aux, FU')
     ldiv!(FU, w_aux)
     @views smat_to_svec!(dder3[3:end], w_aux, cone.rt2)
+
+    return dder3
+end
+
+function dder3(
+    cone::HypoPerLogdetTri{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    @assert cone.grad_updated
+    dder3 = cone.dder3
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+
+    p = pdir[1]
+    q = pdir[2]
+    @views r = pdir[3:end]
+    x = d1[1]
+    y = d1[2]
+    @views z = d1[3:end]
+    u = cone.point[1]
+    v = cone.point[2]
+    @views w = cone.point[3:end]
+    ζ = -cone.ζ
+    σ = cone.ϕ - cone.d
+
+    Wi = Hermitian(cone.Wi)
+    r_mat = Hermitian(svec_to_smat!(copy(cone.mat), r, cone.rt2), :U)
+    z_mat = Hermitian(svec_to_smat!(copy(cone.mat), z, cone.rt2), :U)
+
+    χ_1 = -p + q * σ + v * dot(r_mat, Wi)
+    χ_2 = -x + y * σ + v * dot(z_mat, Wi)
+    ζ_χ_q = χ_1 / ζ - q / v
+    ζ_χ_y = χ_2 / ζ - y / v
+    wiv_ξ_1 = -q / v * I + Wi * r_mat
+    wiv_ξ_2 = -y / v * I + Wi * z_mat
+    wiv_ξ_dot = dot(wiv_ξ_1, wiv_ξ_2')
+
+    c1 = (2 * χ_1 * χ_2 / ζ - v * wiv_ξ_dot) / ζ^2
+
+    dder3[1] = -c1
+    τWvi = (-wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + wiv_ξ_1 * wiv_ξ_2 + wiv_ξ_2 * wiv_ξ_1) / ζ
+    dder3[2] = c1 * σ - tr(τWvi) - 2 * q * y / v^3 + wiv_ξ_dot / ζ
+    dder3_W = c1 * v * Wi + τWvi * v * Wi - Wi * r_mat * Wi * z_mat * Wi - Wi * z_mat * Wi * r_mat * Wi
+    @views smat_to_svec!(dder3[3:end], dder3_W, cone.rt2)
+    dder3 ./= 2
+
+    # barrier = bar(cone)
+    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
+    # true_dder3 = ForwardDiff.gradient(
+    #     s2 -> ForwardDiff.derivative(
+    #         s -> ForwardDiff.derivative(
+    #             t -> bardir(s2, s, t),
+    #             0),
+    #         0),
+    #     cone.point) / 2
+    #
+    # @show true_dder3 ./ dder3
 
     return dder3
 end

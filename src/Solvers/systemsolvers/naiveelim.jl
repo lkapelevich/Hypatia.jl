@@ -20,9 +20,9 @@ mu*H_k*z_k + s_k = srhs_k --> s_k = srhs_k - mu*H_k*z_k
 eliminate kap
 -c'x - b'y - h'z - kap = taurhs
 so
-mu/(taubar^2)*tau + kap = kaprhs --> kap = kaprhs - mu/(taubar^2)*tau
+kapbar/taubar* tau + kap = kaprhs --> kap = kaprhs - kapbar/taubar* tau
 -->
--c'x - b'y - h'z + mu/(taubar^2)*tau = taurhs + kaprhs
+-c'x - b'y - h'z + kapbar/taubar* tau = taurhs + kaprhs
 
 4x4 nonsymmetric system in (x, y, z, tau):
 A'*y + G'*z + c*tau = xrhs
@@ -53,11 +53,11 @@ function solve_subsystem4(
             rhs_sub_z_k .+= rhs_s_k
         elseif syssolver.use_inv_hess
             # -G_k*x + (mu*H_k)\z_k + h_k*tau = zrhs_k + (mu*H_k)\srhs_k
-            Cones.inv_hess_prod!(rhs_sub_z_k, rhs_s_k, cone_k)
+            Cones.inv_scal_hess_prod!(rhs_sub_z_k, rhs_s_k, cone_k)
             rhs_sub_z_k .+= rhs_z_k
         else
             # -mu*H_k*G_k*x + z_k + mu*H_k*h_k*tau = mu*H_k*zrhs_k + srhs_k
-            Cones.hess_prod!(rhs_sub_z_k, rhs_z_k, cone_k)
+            Cones.scal_hess_prod!(rhs_sub_z_k, rhs_z_k, cone_k)
             rhs_sub_z_k .+= rhs_s_k
         end
     end
@@ -212,7 +212,7 @@ function update_lhs(syssolver::NaiveElimSparseSystemSolver, solver::Solver)
         end
     end
     tau = solver.point.tau[]
-    syssolver.lhs_sub.nzval[end] = solver.mu / tau / tau
+    syssolver.lhs_sub.nzval[end] = solver.point.kap[] / tau
 
     solver.time_upfact += @elapsed update_fact(syssolver.fact_cache,
         syssolver.lhs_sub)
@@ -284,22 +284,22 @@ function update_lhs(
         z_rows_k = (n + p) .+ idxs_k
         if Cones.use_dual_barrier(cone_k)
             # -G_k*x + mu*H_k*z_k + h_k*tau = zrhs_k + srhs_k
-            @views copyto!(lhs_sub[z_rows_k, z_rows_k], Cones.hess(cone_k))
+            @views copyto!(lhs_sub[z_rows_k, z_rows_k], Cones.scal_hess(cone_k))
         elseif syssolver.use_inv_hess
             # -G_k*x + (mu*H_k)\z_k + h_k*tau = zrhs_k + (mu*H_k)\srhs_k
             Hi_k = @views copyto!(lhs_sub[z_rows_k, z_rows_k],
-                Cones.inv_hess(cone_k))
+                Cones.inv_scal_hess(cone_k))
         else
             # -mu*H_k*G_k*x + z_k + mu*H_k*h_k*tau = mu*H_k*zrhs_k + srhs_k
-            @views Cones.hess_prod!(lhs_sub[z_rows_k, 1:n],
+            @views Cones.scal_hess_prod!(lhs_sub[z_rows_k, 1:n],
                 model.G[idxs_k, :], cone_k)
             @. lhs_sub[z_rows_k, 1:n] *= -1
-            @views Cones.hess_prod!(lhs_sub[z_rows_k, end],
+            @views Cones.scal_hess_prod!(lhs_sub[z_rows_k, end],
                 model.h[idxs_k], cone_k)
         end
     end
     tau = solver.point.tau[]
-    lhs_sub[end, end] = solver.mu / tau / tau
+    lhs_sub[end, end] = solver.point.kap[] / tau
 
     solver.time_upfact += @elapsed syssolver.fact =
         nonsymm_fact_copy!(syssolver.lhs_sub_fact, syssolver.lhs_sub)

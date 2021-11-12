@@ -12,22 +12,32 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     inv_hess_updated::Bool
     hess_fact_updated::Bool
+    scal_hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
+    scal_hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
+    scal_hess_fact::Factorization{T}
 
     ϕ::T
     ζ::T
+    dual_ϕ::T
     tempw::Vector{T}
 
     function HypoPerLog{T}(
@@ -42,13 +52,23 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
     end
 end
 
+use_scal(::HypoPerLog) = true
+
+reset_data(cone::HypoPerLog) = (cone.feas_updated = cone.grad_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated =
+    cone.hess_fact_updated = cone.scal_hess_fact_updated = false)
+
 function setup_extra_data!(cone::HypoPerLog{T}) where {T <: Real}
     d = cone.dim - 2
+    cone.dual_grad = zeros(T, 2 + d)
     cone.tempw = zeros(T, d)
     return cone
 end
 
 get_nu(cone::HypoPerLog) = cone.dim
+
+use_sqrt_scal_hess_oracles(::Int, ::HypoPerLog) = false
 
 function set_initial_point!(arr::AbstractVector, cone::HypoPerLog)
     (arr[1], arr[2], w) = get_central_ray_hypoperlog(cone.dim - 2)
@@ -80,8 +100,8 @@ function is_dual_feas(cone::HypoPerLog{T}) where {T <: Real}
 
     if all(>(eps(T)), w) && u < -eps(T)
         v = cone.dual_point[2]
-        sumlog = sum(log(w_i / -u) for w_i in w)
-        return (v - u * (sumlog + length(w)) > eps(T))
+        cone.dual_ϕ = sum(log(w_i / -u) for w_i in w)
+        return (v - u * (cone.dual_ϕ + length(w)) > eps(T))
     end
 
     return false
@@ -103,6 +123,26 @@ function update_grad(cone::HypoPerLog)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::HypoPerLog{T}) where {T <: Real}
+    u = cone.dual_point[1]
+    v = cone.dual_point[2]
+    @views w = cone.dual_point[3:end]
+    d = length(w)
+    dg = cone.dual_grad
+
+    β = 1 + d - v / u + cone.dual_ϕ
+    # @show β / d - log(d)
+    bomega = d * omegawright(β / d - log(T(d)))
+    @assert bomega + d * log(bomega) ≈ β
+
+    dg[1] = (-d - 2 + v / u + 2 * bomega) / (u * (1 - bomega))
+    dg[2] = -1 / (u * (1 - bomega))
+    @. dg[3:end] = bomega / w / (1 - bomega)
+
+    cone.dual_grad_updated = true
+    return dg
 end
 
 function update_hess(cone::HypoPerLog)
@@ -275,6 +315,62 @@ function dder3(cone::HypoPerLog{T}, dir::AbstractVector{T}) where {T <: Real}
     dder3[1] = -c2
     dder3[2] = c2 * σ + (abs2(viq) - d * c3 - c4 * tr1) / v - tr2 / ζ - c1
     @. dder3[3:end] = (c5 + rwi * (c4 + vζi1 * rwi)) / w
+
+    return dder3
+end
+
+function dder3(
+    cone::HypoPerLog{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    @assert cone.grad_updated
+    dder3 = cone.dder3
+    d = cone.dim - 2
+    d1 = inv_hess_prod!(zeros(T, d + 2), ddir, cone)
+
+    p = pdir[1]
+    q = pdir[2]
+    @views r = pdir[3:end]
+    x = d1[1]
+    y = d1[2]
+    @views z = d1[3:end]
+    u = cone.point[1]
+    v = cone.point[2]
+    @views w = cone.point[3:end]
+    ζ = -cone.ζ
+    σ = cone.ϕ - d
+
+    rwi = r ./ w
+    zwi = z ./ w
+
+    χ_1 = -p + q * σ + v * sum(rwi)
+    χ_2 = -x + y * σ + v * sum(zwi)
+    ζ_χ_q = χ_1 / ζ - q / v
+    ζ_χ_y = χ_2 / ζ - y / v
+    wiv_ξ_1 = -q / v .+ r ./ w
+    wiv_ξ_2 = -y / v .+ z ./ w
+    wiv_ξ_dot = dot(wiv_ξ_1, wiv_ξ_2)
+
+    c1 = (2 * χ_1 * χ_2 / ζ - v * wiv_ξ_dot) / ζ^2
+
+    dder3[1] = -c1
+    τwvi = (-wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + 2 * wiv_ξ_1 .* wiv_ξ_2) / ζ
+    dder3[2] = c1 * σ - sum(τwvi) - 2 * q * y / v^3 + wiv_ξ_dot / ζ
+    dder3[3:end] .= c1 * v ./ w + τwvi * v ./ w - 2 * r .* z ./ w.^3
+    dder3 ./= 2
+
+    # barrier = bar(cone)
+    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
+    # true_dder3 = ForwardDiff.gradient(
+    #     s2 -> ForwardDiff.derivative(
+    #         s -> ForwardDiff.derivative(
+    #             t -> bardir(s2, s, t),
+    #             0),
+    #         0),
+    #     cone.point) / 2
+    #
+    # @show true_dder3 ./ dder3
 
     return dder3
 end

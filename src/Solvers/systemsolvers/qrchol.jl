@@ -27,9 +27,9 @@ function setup_rhs3(
         if Cones.use_dual_barrier(cone_k)
             z_temp_k = sol.z_views[k]
             @. z_temp_k = -rhs_z_k - rhs_s_k
-            Cones.inv_hess_prod!(rhs_sub_z_k, z_temp_k, cone_k)
+            Cones.inv_scal_hess_prod!(rhs_sub_z_k, z_temp_k, cone_k)
         else
-            Cones.hess_prod!(rhs_sub_z_k, rhs_z_k, cone_k)
+            Cones.scal_hess_prod!(rhs_sub_z_k, rhs_z_k, cone_k)
             axpby!(-1, rhs_s_k, -1, rhs_sub_z_k)
         end
     end
@@ -90,9 +90,9 @@ function block_hess_prod!(
     cone_k::Cones.Cone{T},
     ) where {T <: Real}
     if Cones.use_dual_barrier(cone_k)
-        Cones.inv_hess_prod!(prod_k, arr_k, cone_k)
+        Cones.inv_scal_hess_prod!(prod_k, arr_k, cone_k)
     else
-        Cones.hess_prod!(prod_k, arr_k, cone_k)
+        Cones.scal_hess_prod!(prod_k, arr_k, cone_k)
     end
     return
 end
@@ -212,7 +212,7 @@ function update_lhs_fact(
 
     nmp = size(lhs, 1)
     @inbounds for k in eachindex(cones)
-        use_sqrt_hess_cones[k] = Cones.use_sqrt_hess_oracles(nmp, cones[k])
+        use_sqrt_hess_cones[k] = Cones.use_sqrt_scal_hess_oracles(nmp, cones[k])
     end
 
     # sqrt cones
@@ -225,9 +225,9 @@ function update_lhs_fact(
             q_k = size(arr_k, 1)
             @views prod_k = HGQ2[idx:(idx + q_k - 1), :]
             if Cones.use_dual_barrier(cone_k)
-                Cones.inv_sqrt_hess_prod!(prod_k, arr_k, cone_k)
+                Cones.inv_sqrt_scal_hess_prod!(prod_k, arr_k, cone_k)
             else
-                Cones.sqrt_hess_prod!(prod_k, arr_k, cone_k)
+                Cones.sqrt_scal_hess_prod!(prod_k, arr_k, cone_k)
             end
             idx += q_k
         end

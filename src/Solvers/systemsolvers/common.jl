@@ -110,12 +110,12 @@ function apply_lhs(
         # (du bar) mu*H_k*z_k + s_k
         # (pr bar) z_k + mu*H_k*s_k
         s_res_k = res.s_views[k]
-        Cones.hess_prod_slow!(s_res_k, dir.primal_views[k], cone_k)
+        Cones.scal_hess_prod_slow!(s_res_k, dir.primal_views[k], cone_k, slow = true)
         @. s_res_k += dir.dual_views[k]
     end
 
     tau = solver.point.tau[]
-    res.kap[] = solver.mu / tau * tau_dir / tau + kap_dir
+    res.kap[] = solver.point.kap[] * tau_dir / tau + kap_dir
 
     return res
 end
@@ -145,7 +145,7 @@ function solve_system(
 
     # kap = -mu/taubar^2*tau + kaprhs
     taubar = solver.point.tau[]
-    sol.kap[] = -solver.mu / taubar / taubar * tau + rhs.kap[]
+    sol.kap[] = -solver.point.kap[] / taubar * tau + rhs.kap[]
 
     return sol
 end
@@ -171,7 +171,7 @@ function solve_subsystem4(
     sol_const = syssolver.sol_const
     tau_num = rhs.tau[] + rhs.kap[] + dot_obj(model, sol_sub)
     taubar = solver.point.tau[]
-    tau_denom = solver.mu / taubar / taubar - dot_obj(model, sol_const)
+    tau_denom = solver.point.kap[] / taubar - dot_obj(model, sol_const)
     sol_tau = tau_num / tau_denom
 
     dim3 = length(sol_sub.vec)

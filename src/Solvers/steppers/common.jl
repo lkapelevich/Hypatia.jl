@@ -34,26 +34,30 @@ function update_rhs_predadj(
     irtrtmu = inv(sqrt(sqrt(solver.mu)))
     for (k, cone_k) in enumerate(solver.model.cones)
         Cones.use_dder3(cone_k) || continue
-        H_prim_dir_k = cone_k.vec1
-        prim_k_scal = cone_k.vec2
         prim_dir_k = dir.primal_views[k]
+        if Cones.use_scal(cone_k)
+            dual_dir_k = dir.dual_views[k]
+            dder3_k = Cones.dder3(cone_k, prim_dir_k, dual_dir_k)
+            @. rhs.s_views[k] = dder3_k
+        else
+            H_prim_dir_k = cone_k.vec1
+            prim_k_scal = cone_k.vec2
 
-        @. prim_k_scal = irtrtmu * prim_dir_k
-        Cones.hess_prod_slow!(H_prim_dir_k, prim_dir_k, cone_k)
-        dder3_k = Cones.dder3(cone_k, prim_k_scal)
+            @. prim_k_scal = irtrtmu * prim_dir_k
+            Cones.hess_prod_slow!(H_prim_dir_k, prim_dir_k, cone_k)
+            dder3_k = Cones.dder3(cone_k, prim_k_scal)
 
-        # only use third order deriv if it nearly satisfies an identity
-        dot1 = dot(dder3_k, cone_k.point)
-        dot2 = irtrtmu * dot(prim_k_scal, H_prim_dir_k)
-        dder3_viol = abs(dot1 - dot2) / (rteps + abs(dot2))
-        if dder3_viol < T(1e-4) # TODO tune
-            @. rhs.s_views[k] = H_prim_dir_k + dder3_k
+            # only use third order deriv if it nearly satisfies an identity
+            dot1 = dot(dder3_k, cone_k.point)
+            dot2 = irtrtmu * dot(prim_k_scal, H_prim_dir_k)
+            dder3_viol = abs(dot1 - dot2) / (rteps + abs(dot2))
+            if dder3_viol < T(1e-4) # TODO tune
+                @. rhs.s_views[k] = H_prim_dir_k + dder3_k
+            end
         end
     end
 
-    taubar = solver.point.tau[]
-    tau_dir_tau = dir.tau[] / taubar
-    rhs.kap[] = tau_dir_tau * solver.mu / taubar * (1 + tau_dir_tau)
+    rhs.kap[] = -dir.tau[] * dir.kap[] / solver.point.tau[]
 
     return rhs
 end
@@ -72,7 +76,8 @@ function update_rhs_cent(
     for (k, cone_k) in enumerate(solver.model.cones)
         duals_k = solver.point.dual_views[k]
         grad_k = Cones.grad(cone_k)
-        @. rhs.s_views[k] = -duals_k - rtmu * grad_k
+        g_scal = (Cones.use_scal(cone_k) ? solver.mu : rtmu)
+        @. rhs.s_views[k] = -duals_k - g_scal * grad_k
     end
 
     # kap
@@ -119,3 +124,4 @@ end
 
 include("predorcent.jl")
 include("combined.jl")
+include("symm.jl")

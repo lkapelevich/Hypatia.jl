@@ -74,6 +74,21 @@ function test_oracles(
     grad = Cones.grad(cone)
     @test dot(point, grad) ≈ -nu atol=tol rtol=tol
 
+    if Cones.use_scal(cone)
+        dual_grad = Cones.dual_grad(cone)
+        @test dot(dual_point, dual_grad) ≈ -nu atol=tol rtol=tol
+        Cones.reset_data(cone)
+        Cones.load_point(cone, -dual_grad)
+        @test Cones.is_feas(cone)
+        @test -Cones.grad(cone) ≈ cone.dual_point
+        Cones.reset_data(cone)
+        Cones.load_point(cone, point)
+        @test Cones.is_feas(cone)
+        Cones.grad(cone)
+        Cones.is_dual_feas(cone)
+        Cones.dual_grad(cone)
+    end
+
     hess = Matrix(Cones.hess(cone))
     inv_hess = Matrix(Cones.inv_hess(cone))
     @test hess * inv_hess ≈ I atol=tol rtol=tol
@@ -85,6 +100,25 @@ function test_oracles(
     prod_mat = zeros(T, dim, dim)
     @test Cones.hess_prod!(prod_mat, inv_hess, cone) ≈ I atol=tol rtol=tol
     @test Cones.inv_hess_prod!(prod_mat, hess, cone) ≈ I atol=tol rtol=tol
+
+    if Cones.use_scal(cone)
+        scal_hess = Cones.scal_hess(cone)
+        @test scal_hess * point ≈ dual_point atol=tol rtol=tol
+        @test scal_hess * dual_grad ≈ grad atol=tol rtol=tol
+        inv_scal_hess = Cones.inv_scal_hess(cone)
+        @test inv_scal_hess * dual_point ≈ point atol=tol rtol=tol
+        @test inv_scal_hess * grad ≈ dual_grad atol=tol rtol=tol
+
+        prod_vec = zeros(T, dim)
+        @test Cones.scal_hess_prod!(prod_vec, point, cone) ≈
+            dual_point atol=tol rtol=tol
+        @test Cones.scal_hess_prod!(prod_vec, dual_grad, cone) ≈
+            grad atol=tol rtol=tol
+        @test Cones.inv_scal_hess_prod!(prod_vec, dual_point, cone) ≈
+            point atol=tol rtol=tol
+        @test Cones.inv_scal_hess_prod!(prod_vec, grad, cone) ≈
+            dual_grad atol=tol rtol=tol
+    end
 
     psi = dual_point + grad
     proxsqr = dot(psi, Cones.inv_hess_prod!(prod_vec, psi, cone))
@@ -105,13 +139,25 @@ function test_oracles(
         @test prod_mat2' * prod_mat2 ≈ inv_hess atol=tol rtol=tol
     end
 
+    if Cones.use_scal(cone) && Cones.use_sqrt_scal_hess_oracles(dim + 1, cone)
+        prod_mat2 = Matrix(Cones.sqrt_scal_hess_prod!(prod_mat, inv_scal_hess, cone)')
+        @test Cones.sqrt_scal_hess_prod!(prod_mat, prod_mat2, cone) ≈ I atol=tol rtol=tol
+    end
+
     # test third order deriv oracle
     if Cones.use_dder3(cone)
         @test -Cones.dder3(cone, point) ≈ grad atol=tol rtol=tol
+        if Cones.use_scal(cone)
+            @test -Cones.dder3(cone, point, hess * point) ≈ -grad
+        end
 
         dir = perturb_scale!(zeros(T, dim), noise, one(T))
         dder3 = Cones.dder3(cone, dir)
         @test dot(dder3, point) ≈ dot(dir, hess * dir) atol=tol rtol=tol
+        if Cones.use_scal(cone)
+            dder3 = Cones.dder3(cone, dir, hess * dir)
+            @test dot(dder3, point) ≈ -dot(dir, hess * dir) atol=tol rtol=tol
+        end
     end
 
     return
@@ -158,6 +204,19 @@ function test_barrier(
         fd_third_dir = ForwardDiff.gradient(s2 -> ForwardDiff.derivative(s ->
             ForwardDiff.derivative(t -> barrier_dir(s2, t), s), 0), TFD_point)
         @test -2 * Cones.dder3(cone, dir) ≈ fd_third_dir atol=tol rtol=tol
+    end
+
+    if Cones.use_scal(cone)
+        perturb_scale!(fd_grad, noise, scale)
+        Cones.load_dual_point(cone, -fd_grad)
+        Cones.is_dual_feas(cone)
+        Cones.dual_grad(cone)
+        ddir = 10 * randn(T, dim)
+        d1 = TFD.(Cones.inv_hess(cone) * ddir)
+        barrier_dir(s, t1, t2) = barrier(s + t1 * TFD_dir + t2 * d1)
+        fd_third_dir = ForwardDiff.gradient(s2 -> ForwardDiff.derivative(t2 ->
+            ForwardDiff.derivative(t1 -> barrier_dir(s2, t1, t2), 0), 0), TFD_point)
+        @test 2 * Cones.dder3(cone, dir, ddir) ≈ fd_third_dir atol=tol rtol=tol
     end
 
     return
@@ -544,7 +603,8 @@ show_time_alloc(C::Type{<:Cones.MatrixEpiPerSquare}) = show_time_alloc(C(2, 2))
 # GeneralizedPower
 function test_oracles(C::Type{Cones.GeneralizedPower{T}}) where T
     for (du, dw) in [(2, 1), (3, 2), (4, 1), (2, 4)]
-        test_oracles(C(rand_powers(T, du), dw))
+        @testset "rand" begin test_oracles(C(rand_powers(T, du), dw)) end
+        @testset "equal" begin test_oracles(C(fill(inv(T(du)), du), dw)) end
     end
 end
 

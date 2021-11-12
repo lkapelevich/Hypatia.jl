@@ -11,23 +11,36 @@ mutable struct EpiPerSquare{T <: Real} <: Cone{T}
 
     point::Vector{T}
     dual_point::Vector{T}
+    nt_point::Vector{T}
+    nt_point_sqrt::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
+    dual_feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     inv_hess_updated::Bool
     sqrt_hess_prod_updated::Bool
     inv_sqrt_hess_prod_updated::Bool
     is_feas::Bool
+    nt_updated::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
 
     dist::T
+    dual_dist::T
     rtdist::T
     denom::T
+    rt_dist_ratio::T
+    rt_rt_dist_ratio::T
     sqrt_hess_vec::Vector{T}
     inv_sqrt_hess_vec::Vector{T}
 
@@ -35,17 +48,25 @@ mutable struct EpiPerSquare{T <: Real} <: Cone{T}
         @assert dim >= 3
         cone = new{T}()
         cone.dim = dim
+        cone.dual_grad = zeros(T, dim)
+        cone.nt_point = zeros(T, dim)
+        cone.nt_point_sqrt = zeros(T, dim)
         return cone
     end
 end
 
 use_dual_barrier(::EpiPerSquare) = false
 
-reset_data(cone::EpiPerSquare) = (cone.feas_updated = cone.grad_updated =
+use_scal(::EpiPerSquare) = true
+
+reset_data(cone::EpiPerSquare) = (cone.feas_updated = cone.dual_feas_updated =
+    cone.grad_updated = cone.dual_grad_updated = cone.nt_updated =
     cone.hess_updated = cone.inv_hess_updated = cone.sqrt_hess_prod_updated =
+    cone.scal_hess_updated = cone.inv_scal_hess_updated =
     cone.inv_sqrt_hess_prod_updated = false)
 
-use_sqrt_hess_oracles(::Int, cone::EpiPerSquare) = true
+use_sqrt_hess_oracles(::Int, cone::EpiPerSquare{T}) where {T <: Real} = true
+use_sqrt_scal_hess_oracles(::Int, cone::EpiPerSquare{T}) where {T <: Real} = true
 
 get_nu(cone::EpiPerSquare) = 2
 
@@ -79,7 +100,9 @@ function is_dual_feas(cone::EpiPerSquare{T}) where T
 
     if u > eps(T) && v > eps(T)
         @views w = cone.dual_point[3:end]
-        return (u * v - sum(abs2, w) / 2 > eps(T))
+        cone.dual_dist = u * v - sum(abs2, w) / 2
+        cone.dual_feas_updated = true
+        return (cone.dual_dist > eps(T))
     end
 
     return false
@@ -95,6 +118,18 @@ function update_grad(cone::EpiPerSquare)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::EpiPerSquare)
+    @assert cone.dual_feas_updated
+
+    @. cone.dual_grad = cone.dual_point / cone.dual_dist
+    g2 = cone.dual_grad[2]
+    cone.dual_grad[2] = -cone.dual_grad[1]
+    cone.dual_grad[1] = -g2
+
+    cone.dual_grad_updated = true
+    return cone.dual_grad
 end
 
 function update_hess(cone::EpiPerSquare)
@@ -151,6 +186,16 @@ function hess_prod!(
     return prod
 end
 
+function scal_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::EpiPerSquare{T},
+    ) where {T <: Real}
+    cone.nt_updated || update_nt(cone)
+    rot_hyperbolic_householder(prod, arr, cone.nt_point, cone.rt_dist_ratio, true)
+    return prod
+end
+
 function inv_hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,
@@ -166,6 +211,16 @@ function inv_hess_prod!(
     @. @views prod[2, :] -= cone.dist * arr[1, :]
     @. @views prod[3:end, :] += cone.dist * arr[3:end, :]
 
+    return prod
+end
+
+function inv_scal_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::EpiPerSquare{T},
+    ) where {T <: Real}
+    cone.nt_updated || update_nt(cone)
+    rot_hyperbolic_householder(prod, arr, cone.nt_point, cone.rt_dist_ratio, false)
     return prod
 end
 
@@ -226,6 +281,16 @@ function sqrt_hess_prod!(
     return prod
 end
 
+function sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::EpiPerSquare{T},
+    ) where {T <: Real}
+    cone.nt_updated || update_nt(cone)
+    rot_hyperbolic_householder(prod, arr, cone.nt_point_sqrt, cone.rt_rt_dist_ratio, true)
+    return prod
+end
+
 function inv_sqrt_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
@@ -246,6 +311,53 @@ function inv_sqrt_hess_prod!(
     @. @views prod[3:end, :] += arr[3:end, :] * rtdist
 
     return prod
+end
+
+function update_nt(cone::EpiPerSquare{T}) where {T <: Real}
+    @assert cone.is_feas
+    @assert cone.dual_feas_updated
+    nt_point = cone.nt_point
+    nt_point_sqrt = cone.nt_point_sqrt
+    rt2 = sqrt(T(2))
+
+    normalized_point = cone.point ./ sqrt(cone.dist * 2)
+    normalized_dual_point = cone.dual_point ./ sqrt(cone.dual_dist * 2)
+    gamma = sqrt((1 + dot(normalized_point, normalized_dual_point)) / 2)
+
+    nt_point[1] = normalized_point[2] + normalized_dual_point[1]
+    nt_point[2] = normalized_point[1] + normalized_dual_point[2]
+    @. @views nt_point[3:end] = -normalized_point[3:end] + normalized_dual_point[3:end]
+    nt_point ./= 2 * gamma
+
+    copyto!(nt_point_sqrt, nt_point)
+    nt_point_sqrt[1] += inv(rt2)
+    nt_point_sqrt[2] += inv(rt2)
+    nt_point_sqrt ./= sqrt(2 + (nt_point[1] + nt_point[2]) * rt2)
+
+    cone.rt_dist_ratio = sqrt(cone.dist / cone.dual_dist)
+    cone.rt_rt_dist_ratio = sqrt(cone.rt_dist_ratio)
+
+    cone.nt_updated = true
+
+    return
+end
+
+function update_scal_hess(cone::EpiPerSquare)
+    @assert cone.grad_updated
+    cone.nt_updated || update_nt(cone)
+    isdefined(cone, :scal_hess) || alloc_scal_hess!(cone)
+    H = cone.scal_hess.data
+    nt_point = cone.nt_point
+
+    mul!(H, nt_point, nt_point', 2, false)
+    @inbounds for j in 3:cone.dim
+        H[j, j] += 1
+    end
+    H[1, 2] -= 1
+    H ./= cone.rt_dist_ratio
+
+    cone.scal_hess_updated = true
+    return cone.scal_hess
 end
 
 function dder3(cone::EpiPerSquare, dir::AbstractVector)
@@ -271,4 +383,55 @@ function dder3(cone::EpiPerSquare, dir::AbstractVector)
     dder3 ./= 2 * cone.dist
 
     return dder3
+end
+
+function dder3(
+    cone::EpiPerSquare{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    @assert cone.feas_updated
+    @assert cone.dual_feas_updated
+    dder3 = cone.dder3
+    point = cone.point
+
+    @views jdot_p_s = pdir[1] * point[2] + pdir[2] * point[1] -
+        dot(point[3:end], pdir[3:end])
+    @. dder3 = jdot_p_s * ddir
+    dot_s_z = dot(pdir, ddir)
+    dot_p_z = dot(point, ddir)
+    @. @views dder3[1:2] += dot_s_z * point[2:-1:1] - dot_p_z * pdir[2:-1:1]
+    @. @views dder3[3:end] += -dot_s_z * point[3:end] + dot_p_z * pdir[3:end]
+    dder3 ./= -cone.dist * 2
+
+    return dder3
+end
+
+function rot_hyperbolic_householder(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    v::AbstractVector{T},
+    fact::T,
+    use_inv::Bool,
+    ) where {T <: Real}
+    for j in 1:size(prod, 2)
+        if use_inv
+            @views pa = 2 * dot(v, arr[:, j])
+            @. @views prod[:, j] = pa * v
+        else
+            @views pa = 2 * (v[1] * arr[2] + v[2] * arr[1] - dot(v[3:end], arr[3:end, j]))
+            prod[1, j] = pa * v[2]
+            prod[2, j] = pa * v[1]
+            @. @views prod[3:end, j] = -pa * v[3:end]
+        end
+    end
+    @. prod[1, :] -= arr[2, :]
+    @. prod[2, :] -= arr[1, :]
+    @. prod[3:end, :] += arr[3:end, :]
+    if use_inv
+        prod ./= fact
+    else
+        prod .*= fact
+    end
+    return prod
 end

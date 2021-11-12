@@ -18,6 +18,7 @@ import Hypatia.posdef_fact_copy!
 import Hypatia.inv_fact!
 
 include("arrayutilities.jl")
+include("conjutilities.jl")
 
 """
 $(TYPEDEF)
@@ -39,6 +40,13 @@ $(SIGNATURES)
 The barrier parameter ``\\nu`` of the cone.
 """
 get_nu(cone::Cone)::Real = cone.nu
+
+"""
+$(SIGNATURES)
+
+Whether the cone can have scaling updates.
+"""
+use_scal(cone::Cone) = false
 
 """
 $(SIGNATURES)
@@ -72,6 +80,14 @@ grad(cone::Cone) = (cone.grad_updated ? cone.grad : update_grad(cone))
 
 """
 $(SIGNATURES)
+The gradient of the cone's conjugate barrier function at the currently-loaded
+dual point.
+"""
+dual_grad(cone::Cone) = (cone.dual_grad_updated ? cone.dual_grad :
+    update_dual_grad(cone))
+
+"""
+$(SIGNATURES)
 
 The Hessian (symmetric positive definite) of the cone's barrier function at the
 currently-loaded primal point.
@@ -84,12 +100,36 @@ end
 """
 $(SIGNATURES)
 
+The scaling matrix or Hessian with scaling updates of the cone's barrier
+function at the currently-loaded primal point.
+"""
+function scal_hess(cone::Cone)
+    !use_scal(cone) && return hess(cone)
+    cone.scal_hess_updated && return cone.scal_hess
+    return update_scal_hess(cone)
+end
+
+"""
+$(SIGNATURES)
+
 The inverse Hessian (symmetric positive definite) of the cone's barrier function
 at the currently-loaded primal point.
 """
 function inv_hess(cone::Cone)
     cone.inv_hess_updated && return cone.inv_hess
     return update_inv_hess(cone)
+end
+
+"""
+$(SIGNATURES)
+
+The inverse scaling matrix or Hessian with scaling updates of the cone's barrier
+function at the currently-loaded primal point.
+"""
+function inv_scal_hess(cone::Cone)
+    !use_scal(cone) && return inv_hess(cone)
+    cone.inv_scal_hess_updated && return cone.inv_scal_hess
+    return update_inv_scal_hess(cone)
 end
 
 """
@@ -176,9 +216,23 @@ function alloc_hess!(cone::Cone{T}) where {T <: Real}
     return
 end
 
+function alloc_scal_hess!(cone::Cone{T}) where {T <: Real}
+    @assert use_scal(cone)
+    dim = dimension(cone)
+    cone.scal_hess = Symmetric(zeros(T, dim, dim), :U)
+    return
+end
+
 function alloc_inv_hess!(cone::Cone{T}) where {T <: Real}
     dim = dimension(cone)
     cone.inv_hess = Symmetric(zeros(T, dim, dim), :U)
+    return
+end
+
+function alloc_inv_scal_hess!(cone::Cone{T}) where {T <: Real}
+    @assert use_scal(cone)
+    dim = dimension(cone)
+    cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
     return
 end
 
@@ -194,6 +248,54 @@ function use_sqrt_hess_oracles(arr_dim::Int, cone::Cone)
     return (cone.hess_fact isa Cholesky)
 end
 
+function use_sqrt_scal_hess_oracles(arr_dim::Int, cone::Cone)
+    !use_scal(cone) && return use_sqrt_hess_oracles(arr_dim, cone)
+    if !cone.scal_hess_fact_updated
+        (arr_dim < dimension(cone)) && return false # array is small
+        update_scal_hess_fact(cone) || return false
+    end
+    return (cone.scal_hess_fact isa Cholesky)
+end
+
+# naive fallback
+function update_dual_grad(cone::Cone{T}) where {T <: Real}
+    s = cone.point
+    z = cone.dual_point
+    g = grad(cone)
+    r = z + g
+    Hir = inv_hess_prod!(copy(r), r, cone)
+    n = sqrt(dot(r, Hir))
+    # curr = cone.dual_grad
+    # curr .= s
+    curr = copy(s)
+    old_s = copy(s)
+    # @show n
+    max_iter = 40
+    iter = 1
+    while n > 1000eps(T)
+        α = (n > 0.25 ? inv(1 + n) : 1)
+        curr -= Hir * α
+        load_point(cone, curr)
+        reset_data(cone)
+        update_feas(cone)
+        g = update_grad(cone)
+        r = z + g
+        Hir = inv_hess_prod!(copy(r), r, cone)
+        n = sqrt(dot(r, Hir))
+        # @show n
+        iter += 1
+        (iter > max_iter) && break
+    end
+    # curr *= -1
+    cone.dual_grad = -curr
+    load_point(cone, old_s)
+    reset_data(cone)
+    update_feas(cone)
+    update_grad(cone)
+    cone.dual_grad_updated = true
+    return cone.dual_grad
+end
+
 # only use if use_sqrt_hess_oracles is true
 function sqrt_hess_prod!(
     prod::AbstractVecOrMat,
@@ -202,6 +304,18 @@ function sqrt_hess_prod!(
     )
     @assert cone.hess_fact_updated
     mul!(prod, cone.hess_fact.U, arr)
+    return prod
+end
+
+# NOTE worse convergence than no sqrts
+function sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Cone,
+    )
+    !use_scal(cone) && return sqrt_hess_prod!(prod, arr, cone)
+    @assert cone.scal_hess_fact_updated
+    mul!(prod, cone.scal_hess_fact.U, arr)
     return prod
 end
 
@@ -214,6 +328,17 @@ function inv_sqrt_hess_prod!(
     @assert cone.hess_fact_updated
     # TODO try equilibration, iterative refinement etc like posvx/sysvx
     ldiv!(prod, cone.hess_fact.U', arr)
+    return prod
+end
+
+function inv_sqrt_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Cone,
+    )
+    !use_scal(cone) && return inv_sqrt_hess_prod!(prod, arr, cone)
+    @assert cone.scal_hess_fact_updated
+    ldiv!(prod, cone.scal_hess_fact.U', arr)
     return prod
 end
 
@@ -248,6 +373,56 @@ function update_hess_fact(cone::Cone{T}) where {T <: Real}
 
     cone.hess_fact_updated = true
     return issuccess(cone.hess_fact)
+end
+
+function update_scal_hess_fact(cone::Cone{T}) where {T <: Real}
+    !use_scal(cone) &&  update_hess_fact(cone)
+    cone.scal_hess_fact_updated && return true
+    cone.scal_hess_fact_updated = true
+    if update_hess_fact(cone) && cone.hess_fact isa Cholesky
+        s = cone.point
+        z = cone.dual_point
+        ts = -dual_grad(cone)
+        tz = -grad(cone)
+
+        nu = get_nu(cone)
+        dot_sz = dot(s, z)
+        cone_mu = dot_sz / nu
+
+        tmu = dot(ts, tz) / nu
+        tol = sqrt(eps(T))
+        @assert cone_mu * tmu >= 1 - tol
+        ds = s - cone_mu * ts
+        dz = z - cone_mu * tz
+        Hts = hess_prod!(copy(ts), ts, cone)
+
+        fact = cone.scal_hess_fact = copy(cone.hess_fact)
+        fact.factors .*= sqrt(cone_mu)
+        if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
+            (dot(ts, Hts) - nu * tmu^2 < tol)
+            return true
+        else
+            lowrankupdate!(fact, z / sqrt(dot_sz))
+            lowrankupdate!(fact, dz / sqrt(dot(ds, dz)))
+            try
+                lowrankdowndate!(fact, tz * sqrt(cone_mu / nu))
+                c5 = cone_mu / (dot(ts, Hts) - nu * tmu^2)
+                v1 = Hts - tmu * tz
+                lowrankdowndate!(fact, v1 * sqrt(c5))
+                return true
+            catch _
+                @warn "downdate failed"
+            end
+        end
+    end
+    scal_hess(cone, mu)
+    if !isdefined(cone, :scal_hess_fact_mat)
+        cone.scal_hess_fact_mat = zero(cone.scal_hess)
+    end
+    cone.scal_hess_fact = posdef_fact_copy!(cone.scal_hess_fact_mat, cone.scal_hess, false)
+    # cone.scal_hess_fact = bunchkaufman(scal_hess(cone, mu))
+
+    return issuccess(cone.scal_hess_fact)
 end
 
 function update_inv_hess(cone::Cone)
@@ -308,6 +483,178 @@ function get_proxsqr(
 
     return abs(prox_sqr)
 end
+
+function get_proxcompl(cone::Cone{T}, mu::T) where {T <: Real}
+    g = grad(cone)
+    dg = dual_grad(cone)
+    nu = get_nu(cone)
+    return nu / dot(g, dg) / mu
+end
+
+# NOTE if near the central path, updates should be skipped and mu*Hess should
+# be used, where mu is the global mu that is not passed into these functions.
+# on the first iteration, this happens but both global and local mus are
+# equal to one and that's OK. in other cases, we return an approximation of
+# mu*Hess by using the local mu (this doesn't happen often).
+function update_scal_hess(cone::Cone{T}) where {T <: Real}
+    @assert use_scal(cone)
+    if !isdefined(cone, :scal_hess)
+        dim = dimension(cone)
+        cone.scal_hess = Symmetric(zeros(T, dim, dim), :U)
+    end
+    old_hess = hess(cone)
+    H = cone.scal_hess.data
+    s = cone.point
+    z = cone.dual_point
+    ts = -dual_grad(cone)
+    tz = -grad(cone)
+
+    nu = get_nu(cone)
+    mu = dot(s, z) / nu
+    tmu = dot(ts, tz) / nu
+    tol = sqrt(eps(T))
+    @assert mu * tmu >= 1 - tol
+
+    ds = s - mu * ts
+    dz = z - mu * tz
+    Hts = hess_prod!(copy(ts), ts, cone)
+    if (norm(ds) < tol) || (norm(dz) < tol) || (mu * tmu - 1 < tol) ||
+        (abs(dot(ts, Hts) - nu * tmu^2) < tol)
+        # @show "~~ skipping updates ~~"
+        H .= old_hess * mu
+    else
+        v1 = z + mu * tz + dz / (mu * tmu - 1)
+        v2 = Hts - tmu * tz
+        M1 = dz * v1'
+        H .= old_hess * mu + 1 / (2 * mu * nu) * (M1 + M1') - mu /
+            (dot(ts, Hts) - nu * tmu^2) * v2 * v2'
+    end
+    cone.scal_hess_updated = true
+    return cone.scal_hess
+end
+
+function update_inv_scal_hess(cone::Cone{T}) where {T <: Real}
+    @assert use_scal(cone)
+    if !isdefined(cone, :inv_scal_hess)
+        dim = dimension(cone)
+        cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
+    end
+    cone.inv_scal_hess = inv(scal_hess(cone))
+    cone.inv_scal_hess_updated = true
+    return cone.inv_scal_hess
+end
+
+function scal_hess_prod!(
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::Cone{T},
+    slow::Bool = false,
+    ) where {T <: Real}
+    if !use_scal(cone)
+        slow ? hess_prod_slow!(prod, arr, cone) : hess_prod!(prod, arr, cone)
+        return prod
+    end
+
+    s = cone.point
+    z = cone.dual_point
+    ts = -dual_grad(cone)
+    tz = -grad(cone)
+
+    dot_sz = dot(s, z)
+    nu = get_nu(cone)
+    cone_mu = dot_sz / nu
+    tmu = dot(ts, tz) / nu
+
+    ds = s - cone_mu * ts
+    dz = z - cone_mu * tz
+    if slow
+        Hts = hess_prod_slow!(copy(ts), ts, cone)
+        hess_prod_slow!(prod, arr, cone)
+    else
+        Hts = hess_prod!(copy(ts), ts, cone)
+        hess_prod!(prod, arr, cone)
+    end
+    prod .*= cone_mu
+
+    tol = sqrt(eps(T))
+    if (norm(ds) > tol) && (norm(dz) > tol) && (cone_mu * tmu - 1 > tol) &&
+        (abs(dot(ts, Hts) - nu * tmu^2) > tol)
+        v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
+        v2 = Hts - tmu * tz
+        M1 = dz * v1'
+        tsHts = dot(ts, Hts)
+        @inbounds for j in 1:size(arr, 2)
+            prod_j = view(prod, :, j)
+            arr_j = view(arr, :, j)
+            d1 = dot(v1, arr_j)
+            d2 = dot(dz, arr_j)
+            d3 = dot(v2, arr_j)
+            @. prod_j += d1 / (2 * dot_sz) * dz
+            @. prod_j += d2 / (2 * dot_sz) * v1
+            @. prod_j -= d3 * cone_mu / (tsHts - nu * tmu^2) .* v2
+        end
+    end
+
+    return prod
+end
+
+function inv_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::Cone,
+    )
+    !use_scal(cone) && return inv_hess_prod!(prod, arr, cone)
+    # prod .= cholesky(scal_hess(cone, mu)) \ arr
+    update_scal_hess_fact(cone)
+    ldiv!(prod, cone.scal_hess_fact, arr)
+    return prod
+end
+
+# function inv_scal_hess_prod!(
+#     prod::AbstractVecOrMat,
+#     arr::AbstractVecOrMat,
+#     cone::Cone,
+#     )
+#
+#     s = cone.point
+#     z = cone.dual_point
+#     ts = -dual_grad(cone)
+#     tz = -grad(cone)
+#
+#     nu = get_nu(cone)
+#     cone_mu = dot(s, z) / nu
+#     tmu = dot(ts, tz) / nu
+#
+#     ds = s - cone_mu * ts
+#     dz = z - cone_mu * tz
+#     Hts = hess_prod!(copy(ts), ts, cone)
+#     tol = sqrt(eps(T))
+#     # tol = 1000eps(T)
+#     if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
+#         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
+#         # @show "~~ skipping updates ~~"
+#         inv_hess_prod!(prod, arr, cone)
+#         prod ./= cone_mu
+#     else
+#         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
+#         v2 = sqrt(cone_mu) * (Hts - tmu * tz) / sqrt(abs(dot(ts, Hts) - nu * tmu^2))
+#
+#         c1 = 1 / sqrt(2 * cone_mu * nu)
+#         U = hcat(c1 * dz, c1 * v1, -v2)
+#         V = hcat(c1 * v1, c1 * dz, v2)'
+#
+#         t1 = inv_hess_prod!(copy(arr), arr, cone) / cone_mu
+#         t2 = V * t1
+#         t3 = inv_hess_prod!(copy(U), U, cone) / cone_mu
+#         t4 = I + V * t3
+#         t5 = t4 \ t2
+#         t6 = U * t5
+#         t7 = inv_hess_prod!(copy(t6), t6, cone) / cone_mu
+#         prod .= t1 - t7
+#     end
+#
+#     return prod
+# end
 
 include("nonnegative.jl")
 include("possemideftri.jl")

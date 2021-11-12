@@ -16,27 +16,39 @@ mutable struct HypoRootdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     hess_fact_updated::Bool
+    scal_hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
+    scal_hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
+    scal_hess_fact::Factorization{T}
 
     di::T
     ϕ::T
     ζ::T
     η::T
     mat::Matrix{R}
+    dual_mat::Matrix{R}
     fact_W::Cholesky{R}
+    dual_fact_W::Cholesky{R}
     Wi::Matrix{R}
+    dual_Wi::Matrix{R}
     Wi_vec::Vector{T}
     tempw::Vector{T}
     mat2::Matrix{R}
@@ -58,6 +70,13 @@ mutable struct HypoRootdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     end
 end
 
+use_scal(::HypoRootdetTri{T, T}) where {T <: Real} = true
+
+reset_data(cone::HypoRootdetTri) = (cone.feas_updated = cone.grad_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated =
+    cone.hess_fact_updated = cone.scal_hess_fact_updated = false)
+
 function setup_extra_data!(
     cone::HypoRootdetTri{T, R},
     ) where {T <: Real, R <: RealOrComplex{T}}
@@ -65,7 +84,10 @@ function setup_extra_data!(
     d = cone.d
     cone.di = inv(T(d))
     cone.mat = zeros(R, d, d)
+    cone.dual_mat = zeros(R, d, d)
+    cone.dual_grad = zeros(R, cone.dim)
     cone.Wi = zeros(R, d, d)
+    cone.dual_Wi = zeros(R, d, d)
     cone.Wi_vec = zeros(T, dim - 1)
     cone.tempw = zeros(T, dim - 1)
     cone.mat2 = zeros(R, d, d)
@@ -75,6 +97,8 @@ function setup_extra_data!(
 end
 
 get_nu(cone::HypoRootdetTri) = 1 + cone.d
+
+use_sqrt_scal_hess_oracles(::Int, cone::HypoRootdetTri) = false
 
 function set_initial_point!(
     arr::AbstractVector{T},
@@ -114,8 +138,9 @@ function is_dual_feas(cone::HypoRootdetTri{T}) where {T <: Real}
     u = cone.dual_point[1]
 
     if u < -eps(T)
-        @views svec_to_smat!(cone.mat2, cone.dual_point[2:end], cone.rt2)
-        fact = cholesky!(Hermitian(cone.mat2, :U), check = false)
+        @views svec_to_smat!(cone.dual_mat, cone.dual_point[2:end], cone.rt2)
+        fact = cone.dual_fact_W = cholesky!(Hermitian(cone.dual_mat, :U),
+            check = false)
         if isposdef(fact)
             return (exp(cone.di * logdet(fact)) + cone.di * u > eps(T))
         end
@@ -138,6 +163,22 @@ function update_grad(cone::HypoRootdetTri)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::HypoRootdetTri)
+    u = cone.dual_point[1]
+    d = cone.d
+    dg = cone.dual_grad
+    dual_ϕ = exp(logdet(cone.dual_fact_W) / d)
+
+    inv_fact!(cone.dual_Wi, cone.dual_fact_W)
+    @views smat_to_svec!(dg[2:end], cone.dual_Wi, cone.rt2)
+    @. @views dg[2:end] *= -1 / (1 + u / d / dual_ϕ)
+
+    dg[1] = -inv(u) - d / (d * dual_ϕ + u)
+
+    cone.dual_grad_updated = true
+    return dg
 end
 
 function update_hess(cone::HypoRootdetTri)
@@ -315,6 +356,64 @@ function dder3(cone::HypoRootdetTri{T}, dir::AbstractVector{T}) where {T <: Real
     rdiv!(w_aux, FU')
     ldiv!(FU, w_aux)
     @views smat_to_svec!(dder3[2:end], w_aux, cone.rt2)
+
+    return dder3
+end
+
+function dder3(
+    cone::HypoRootdetTri{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    dder3 = cone.dder3
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+    di = cone.di
+
+    p = pdir[1]
+    @views r = pdir[2:end]
+    x = d1[1]
+    @views z = d1[2:end]
+    u = cone.point[1]
+    @views w = cone.point[2:end]
+    ζ = -cone.ζ
+    ϕ = cone.ϕ
+
+    Wi = Hermitian(cone.Wi)
+    r_mat = Hermitian(svec_to_smat!(copy(cone.mat), r, cone.rt2), :U)
+    z_mat = Hermitian(svec_to_smat!(copy(cone.mat), z, cone.rt2), :U)
+
+    rwi = Wi * r_mat
+    zwi = Wi * z_mat
+    tr_rwi = dot(r_mat, Wi) * di
+    tr_zwi = dot(z_mat, Wi) * di
+
+    χ_1 = -p + ϕ * tr_rwi
+    χ_2 = -x + ϕ * tr_zwi
+
+    dot_rzwi = dot(Wi * r_mat * Wi, z_mat)
+    c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * ϕ * (tr_rwi * tr_zwi - di * dot_rzwi)
+
+    dder3[1] = -c1
+    rz_ζ_χ_wi = Wi * (r_mat * χ_2 / ζ + z_mat * χ_1 / ζ)
+    rzwi = Wi * r_mat * Wi * z_mat + Wi * z_mat * Wi * r_mat
+    τ = (tr(rz_ζ_χ_wi) * di * I - rz_ζ_χ_wi +
+        tr_rwi * tr_zwi * I - tr_rwi * zwi - tr_zwi * rwi - di * dot_rzwi * I +
+            rzwi) * ϕ * di * Wi / ζ
+    dder3_W = c1 * ϕ * di * Wi + τ - rzwi * Wi
+    @views smat_to_svec!(dder3[2:end], dder3_W, cone.rt2)
+    dder3 ./= 2
+
+    # barrier = bar(cone)
+    # bardir(point, s, t) = barrier(point + s * d1 + t * pdir)
+    # true_dder3 = ForwardDiff.gradient(
+    #     s2 -> ForwardDiff.derivative(
+    #         s -> ForwardDiff.derivative(
+    #             t -> bardir(s2, s, t),
+    #             0),
+    #         0),
+    #     cone.point) / 2
+    #
+    # @show true_dder3 ./ dder3
 
     return dder3
 end

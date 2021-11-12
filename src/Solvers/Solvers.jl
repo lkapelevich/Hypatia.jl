@@ -159,6 +159,8 @@ mutable struct Solver{T <: Real}
     c_scale::Vector{T}
     h_scale::Vector{T}
 
+    compl_prev::T # TODO delete
+
     function Solver{T}(;
         verbose::Bool = true,
         iter_limit::Int = 1000,
@@ -321,6 +323,7 @@ function solve(solver::Solver{T}) where {T <: Real}
         solver.y_residual = zero(model.b)
         solver.z_residual = zero(model.h)
         solver.tau_residual = 0
+        solver.compl_prev = dot(point.s, point.z) + point.tau[] * point.kap[] # TODO delete
 
         solver.x_conv_tol = inv(1 + norm(model.c, Inf))
         solver.y_conv_tol = inv(1 + norm(model.b, Inf))
@@ -478,6 +481,13 @@ function calc_convergence_params(solver::Solver{T}) where {T <: Real}
     solver.primal_obj = solver.primal_obj_t / tau + model.obj_offset
     solver.dual_obj = solver.dual_obj_t / tau + model.obj_offset
     solver.gap = dot(point.z, point.s)
+
+    # TODO remove, for debugging
+    compl = solver.gap + point.tau[] * point.kap[]
+    α = solver.stepper.prev_alpha
+    γ = solver.stepper.gamma
+    @show 1 - α * (1 - γ) - compl / solver.compl_prev
+    solver.compl_prev = compl
 
     return improv
 end

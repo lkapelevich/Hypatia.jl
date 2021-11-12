@@ -14,19 +14,28 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     hess_fact_updated::Bool
+    scal_hess_fact_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
+    scal_hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
+    scal_hess_fact::Factorization{T}
 
     ϕ::T
     ζ::T
@@ -49,13 +58,23 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
     end
 end
 
+use_scal(::HypoPowerMean) = true
+
+reset_data(cone::HypoPowerMean) = (cone.feas_updated = cone.grad_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
+    cone.inv_hess_updated = cone.inv_scal_hess_updated =
+    cone.hess_fact_updated = cone.scal_hess_fact_updated = false)
+
 function setup_extra_data!(cone::HypoPowerMean{T}) where {T <: Real}
+    cone.dual_grad = zeros(T, cone.dim)
     cone.tempw1 = zeros(T, cone.dim - 1)
     cone.tempw2 = zero(cone.tempw1)
     return cone
 end
 
 get_nu(cone::HypoPowerMean) = cone.dim
+
+use_sqrt_scal_hess_oracles(::Int, cone::HypoPowerMean) = false
 
 function set_initial_point!(
     arr::AbstractVector{T},
@@ -97,7 +116,8 @@ function is_dual_feas(cone::HypoPowerMean{T}) where {T <: Real}
 
     if u < -eps(T) && all(>(eps(T)), w)
         sumlog = sum(α_i * log(w_i / α_i) for (α_i, w_i) in zip(α, w))
-        return (exp(sumlog) + u > eps(T))
+        dual_ϕ = exp(sumlog)
+        return (dual_ϕ + u > eps(T))
     end
 
     return false
@@ -115,6 +135,33 @@ function update_grad(cone::HypoPowerMean)
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function update_dual_grad(cone::HypoPowerMean{T}) where {T <: Real}
+    u = cone.dual_point[1]
+    @views w = cone.dual_point[2:end]
+    d = length(w)
+    dg = cone.dual_grad
+    α = cone.α
+    sumlog = sum(α_i * log(w_i) for (α_i, w_i) in zip(α, w))
+
+    f(y) = sum(ai * log(y - u * ai) for ai in α) - sumlog
+    fp(y) = sum(ai / (y - u * ai) for ai in α)
+    fpp_abs(y) = sum(ai / (y - u * ai)^2 for ai in α)
+    max_dev(l, u) = fpp_abs(l) / fp(u) / 2
+    lower_bound = zero(T)
+    upper_bound = exp(sumlog) + u / d
+    max_dev_init = sum(α.^(-2)) / u^2 /
+        (2 * upper_bound * sum(inv.(1 .- u * α * upper_bound)))
+    new_bound = rootnewton(lower_bound, upper_bound, f, fp, fpp_abs, max_dev,
+        max_dev_init = max_dev_init)
+
+    dual_g_ϕ = inv(new_bound)
+    dg[1] = -inv(u) - dual_g_ϕ
+    @views dg[2:end] .= (u * dual_g_ϕ * α .- 1) ./ w
+
+    cone.dual_grad_updated = true
+    return dg
 end
 
 function update_hess(cone::HypoPowerMean)
@@ -265,6 +312,47 @@ function dder3(cone::HypoPowerMean{T}, dir::AbstractVector{T}) where {T <: Real}
 
     dder3[1] = -c1 / ζ
     @. dder3[2:end] = (α * (c7 + rwi * (c8 + ζiϕ * rwi)) + abs2(rwi)) / w
+
+    return dder3
+end
+
+function dder3(
+    cone::HypoPowerMean{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    dder3 = cone.dder3
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+
+    p = pdir[1]
+    @views r = pdir[2:end]
+    x = d1[1]
+    @views z = d1[2:end]
+    u = cone.point[1]
+    @views w = cone.point[2:end]
+    ζ = -cone.ζ
+    ϕ = cone.ϕ
+    α = cone.α
+
+    rwi = r ./ w
+    zwi = z ./ w
+    tr_rwi = dot(rwi, α)
+    tr_zwi = dot(zwi, α)
+
+    χ_1 = -p + ϕ * tr_rwi
+    χ_2 = -x + ϕ * tr_zwi
+
+    dot_rzwi = sum(rwi .* zwi .* α)
+    c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * ϕ * (tr_rwi * tr_zwi - dot_rzwi)
+
+    dder3[1] = -c1
+    rz_ζ_χ_wi = (r * χ_2 / ζ + z * χ_1 / ζ) ./ w
+    rzwi = rwi .* zwi
+    τ = (dot(rz_ζ_χ_wi, α) .- rz_ζ_χ_wi .+
+        tr_rwi * tr_zwi .- tr_rwi * zwi .- tr_zwi * rwi .- dot_rzwi .+
+            2 * rzwi) * ϕ .* α ./ w / ζ
+    dder3[2:end] .= c1 * ϕ * α ./ w + τ - 2 * rzwi ./ w
+    dder3 ./= 2
 
     return dder3
 end
