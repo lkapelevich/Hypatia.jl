@@ -114,6 +114,29 @@ function quadratic_hess_prod!(
     return prod
 end
 
+# function quadratic_hess_prod!(
+#     prod::AbstractVecOrMat{T},
+#     arr::AbstractVecOrMat,
+#     cone::GeneralizedPower{T},
+#     ) where {T <: Real}
+#     @assert cone.grad_updated
+#     np = size(arr, 1)
+#     m = length(cone.α)
+#     n = cone.n
+#
+#     temp_np_np = zeros(T, np, np)
+#     temp_m_np = zeros(T, m, np)
+#     temp_n_np = zeros(T, n, np)
+#     temp_np = zeros(T, np)
+#
+#     @views u = cone.point[u_idxs]
+#     @views A_u = arr[:, 1]
+#     @views A_w = arr[:, 2:end]
+#
+#
+#     return prod
+# end
+
 use_quadratic_oracles(::Cone) = false
 
 function quadratic_scal_hess_prod!(

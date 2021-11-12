@@ -763,10 +763,6 @@ end
 #     mu::T,
 #     ) where T
 #
-#     # TODO refactor
-#     hess(cone)
-#
-#     old_hess = copy(cone.hess)
 #     s = cone.point
 #     z = cone.dual_point
 #     ts = -dual_grad(cone)
@@ -778,7 +774,7 @@ end
 #
 #     ds = s - cone_mu * ts
 #     dz = z - cone_mu * tz
-#     Hts = old_hess * ts
+#     Hts = hess_prod!(copy(ts), ts, cone)
 #     tol = sqrt(eps(T))
 #     # tol = 1000eps(T)
 #     if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
@@ -788,12 +784,11 @@ end
 #         prod ./= mu
 #     else
 #         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
-#         v2 = Hts - tmu * tz
+#         v2 = sqrt(cone_mu) * (Hts - tmu * tz) / sqrt(abs(dot(ts, Hts) - nu * tmu^2))
 #
 #         c1 = 1 / sqrt(2 * cone_mu * nu)
-#         c2 = sqrt(cone_mu / (dot(ts, Hts) - nu * tmu^2))
-#         U = hcat(c1 * dz, c1 * v1, -c2 * v2)
-#         V = hcat(c1 * v1, c1 * dz, c2 * v2)'
+#         U = hcat(c1 * dz, c1 * v1, -v2)
+#         V = hcat(c1 * v1, c1 * dz, v2)'
 #
 #         t1 = inv_hess_prod!(copy(arr), arr, cone) / cone_mu
 #         t2 = V * t1

@@ -29,7 +29,7 @@ inst_sets = [
     # ("minimal", Float32, 60),
     # ("minimal", BigFloat, 60),
     # ("fast", Float64, 60),
-    ("various", Float64, 120),
+    ("various", Float64, 500),
     ]
 
 perf = Examples.setup_benchmark_dataframe()
