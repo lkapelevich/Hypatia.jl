@@ -190,6 +190,7 @@ function check_cone_points(
 
         in_prox_k = false
         scal_point = (Cones.use_scal(cone_k) ? one(T) : irtmu)
+        # scal_point = one(T)
         Cones.load_point(cone_k, cand.primal_views[k], scal_point)
         Cones.load_dual_point(cone_k, cand.dual_views[k])
         Cones.reset_data(cone_k)

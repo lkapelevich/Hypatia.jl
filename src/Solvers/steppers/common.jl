@@ -54,6 +54,19 @@ function update_rhs_predadj(
             if dder3_viol < T(1e-4) # TODO tune
                 @. rhs.s_views[k] = H_prim_dir_k + dder3_k
             end
+            # H_prim_dir_k = cone_k.vec1
+            # prim_dir_k = dir.primal_views[k]
+            #
+            # Cones.hess_prod_slow!(H_prim_dir_k, prim_dir_k, cone_k)
+            # dder3_k = Cones.dder3(cone_k, prim_dir_k)
+            #
+            # # only use third order deriv if it nearly satisfies an identity
+            # dot1 = dot(dder3_k, cone_k.point)
+            # dot2 = dot(prim_dir_k, H_prim_dir_k)
+            # dder3_viol = abs(dot1 - dot2) / (rteps + abs(dot2))
+            # if dder3_viol < T(1e-4) # TODO tune
+            #     @. rhs.s_views[k] = (H_prim_dir_k + dder3_k) * solver.mu
+            # end
         end
     end
 
@@ -77,6 +90,7 @@ function update_rhs_cent(
         duals_k = solver.point.dual_views[k]
         grad_k = Cones.grad(cone_k)
         g_scal = (Cones.use_scal(cone_k) ? solver.mu : rtmu)
+        # g_scal = solver.mu
         @. rhs.s_views[k] = -duals_k - g_scal * grad_k
     end
 

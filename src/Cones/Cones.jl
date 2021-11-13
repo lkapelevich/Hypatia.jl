@@ -476,7 +476,10 @@ function get_proxsqr(
     vec1 = cone.vec1
     vec2 = cone.vec2
 
-    @. vec1 = irtmu * cone.dual_point + g
+    # @. vec1 = irtmu * cone.dual_point + g # correct with scaling
+    # @. vec1 = cone.dual_point + g * inv(abs2(irtmu)) # wrong but works without scaling
+    @. vec1 = cone.dual_point / irtmu + g * inv(abs2(irtmu)) # wrong but works with scaling
+    # @. vec1 = cone.dual_point / irtmu^2 + g # correct without scaling
     inv_hess_prod!(vec2, vec1, cone)
     prox_sqr = dot(vec2, vec1)
     (prox_sqr < -negtol * length(g)) && return T(Inf) # should be positive
