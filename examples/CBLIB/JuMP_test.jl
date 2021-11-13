@@ -1,5 +1,7 @@
 
 # directory of CBLIB files
+# cblib_dir = "C:\\Users\\leaka\\cblib\\cblib.zib.de\\download\\all"
+# cblib_dir = "C:\\Users\\lkape\\cblib\\cblib.zib.de\\download\\all"
 cblib_dir = joinpath(ENV["HOME"], "cblib/cblib.zib.de/download/all")
 if !isdir(cblib_dir)
     @warn("CBLIB download folder not found")

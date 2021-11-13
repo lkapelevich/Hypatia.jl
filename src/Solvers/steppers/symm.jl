@@ -189,19 +189,17 @@ function check_cone_points(
         start_time = time()
 
         in_prox_k = false
+        scal_point = (Cones.use_scal(cone_k) ? one(T) : irtmu)
+        Cones.load_point(cone_k, cand.primal_views[k], scal_point)
+        Cones.load_dual_point(cone_k, cand.dual_views[k])
+        Cones.reset_data(cone_k)
         if Cones.is_feas(cone_k) && Cones.is_dual_feas(cone_k) # &&
             # Cones.check_numerics(cone_k, mu)
             if Cones.use_scal(cone_k)
-                Cones.load_point(cone_k, cand.primal_views[k])
-                Cones.load_dual_point(cone_k, cand.dual_views[k])
-                Cones.reset_data(cone_k)
                 proxsqr_k = Cones.get_proxcompl(cone_k, mu)
                 agg_proxcompl = min(agg_proxcompl, proxsqr_k)
                 in_prox_k = (agg_proxcompl > β)
             else
-                Cones.load_point(cone_k, cand.primal_views[k], irtmu)
-                Cones.load_dual_point(cone_k, cand.dual_views[k])
-                Cones.reset_data(cone_k)
                 proxsqr_k = Cones.get_proxsqr(cone_k, irtmu, use_max_prox)
                 in_prox_k = (proxsqr_k < T(0.99))
             end

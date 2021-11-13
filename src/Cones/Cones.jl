@@ -415,7 +415,7 @@ function update_scal_hess_fact(cone::Cone{T}) where {T <: Real}
             end
         end
     end
-    scal_hess(cone, mu)
+    scal_hess(cone)
     if !isdefined(cone, :scal_hess_fact_mat)
         cone.scal_hess_fact_mat = zero(cone.scal_hess)
     end
@@ -547,7 +547,7 @@ end
 function scal_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
-    cone::Cone{T},
+    cone::Cone{T};
     slow::Bool = false,
     ) where {T <: Real}
     if !use_scal(cone)
