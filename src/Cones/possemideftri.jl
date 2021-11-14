@@ -209,6 +209,7 @@ function scal_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::PosSemidefTri{T, R},
+    ::Bool = false,
     ) where {T <: Real, R <: RealOrComplex{T}}
     @assert cone.feas_updated && cone.dual_feas_updated
     cone.nt_updated || update_nt(cone)

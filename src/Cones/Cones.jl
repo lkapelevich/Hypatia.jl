@@ -550,7 +550,7 @@ end
 function scal_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
-    cone::Cone{T};
+    cone::Cone{T},
     slow::Bool = false,
     ) where {T <: Real}
     if !use_scal(cone)

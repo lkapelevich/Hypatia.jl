@@ -110,7 +110,7 @@ function apply_lhs(
         # (du bar) mu*H_k*z_k + s_k
         # (pr bar) z_k + mu*H_k*s_k
         s_res_k = res.s_views[k]
-        Cones.scal_hess_prod!(s_res_k, dir.primal_views[k], cone_k, slow = true)
+        Cones.scal_hess_prod!(s_res_k, dir.primal_views[k], cone_k, true)
         # !Cones.use_scal(cone_k) && (s_res_k .*= solver.mu)
         @. s_res_k += dir.dual_views[k]
     end

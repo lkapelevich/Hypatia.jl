@@ -141,6 +141,7 @@ function scal_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::Nonnegative{T},
+    ::Bool = false,
     ) where {T <: Real}
     @assert cone.is_feas
     @. prod = arr * cone.dual_point / cone.point

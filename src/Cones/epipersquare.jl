@@ -190,6 +190,7 @@ function scal_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::EpiPerSquare{T},
+    ::Bool = false,
     ) where {T <: Real}
     cone.nt_updated || update_nt(cone)
     rot_hyperbolic_householder(prod, arr, cone.nt_point, cone.rt_dist_ratio, true)
