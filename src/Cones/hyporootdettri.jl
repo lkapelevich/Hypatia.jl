@@ -85,7 +85,6 @@ function setup_extra_data!(
     cone.di = inv(T(d))
     cone.mat = zeros(R, d, d)
     cone.dual_mat = zeros(R, d, d)
-    cone.dual_grad = zeros(R, cone.dim)
     cone.Wi = zeros(R, d, d)
     cone.dual_Wi = zeros(R, d, d)
     cone.Wi_vec = zeros(T, dim - 1)

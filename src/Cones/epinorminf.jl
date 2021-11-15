@@ -14,21 +14,28 @@ mutable struct EpiNormInf{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     inv_hess_aux_updated::Bool
     is_feas::Bool
     hess::Symmetric{T, SparseMatrixCSC{T, Int}}
+    scal_hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
 
     w::Vector{R}
     mu::Vector{R}
     zeta::Vector{T}
+    dual_zeta::T
     cu::T
     Zu::T
     wumzi::Vector{R}
@@ -54,10 +61,16 @@ mutable struct EpiNormInf{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     end
 end
 
+use_scal(::EpiNormInf{T, T}) where {T <: Real} = true
+
 reset_data(cone::EpiNormInf) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = cone.inv_hess_aux_updated = false)
+    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.inv_hess_aux_updated = cone.scal_hess_updated =
+    cone.inv_scal_hess_updated = false)
 
 use_sqrt_hess_oracles(::Int, cone::EpiNormInf) = false
+
+use_sqrt_scal_hess_oracles(::Int, cone::EpiNormInf) = false
 
 function setup_extra_data!(
     cone::EpiNormInf{T, R},
@@ -113,7 +126,8 @@ function is_dual_feas(cone::EpiNormInf{T}) where T
         else
             @views norm1 = sum(abs, dp[2:end])
         end
-        return (u - norm1 > eps(T))
+        cone.dual_zeta = u - norm1
+        return (cone.dual_zeta > eps(T))
     end
     return false
 end
@@ -146,6 +160,42 @@ function update_grad(cone::EpiNormInf{T}) where T
 
     cone.grad_updated = true
     return cone.grad
+end
+
+function epinorminf_dg(u::T, w::AbstractVector{T}, d::Int, dual_zeta::T) where T
+    h(y) = u * y + sum(sqrt(1 + abs2(w[i]) * y^2) for i in 1:d) + 1
+    hp(y) = u + sum(abs2(w[i]) * y * (1 + abs2(w[i]) * y^2)^(-1/2) for i in 1:d)
+    hpp(y) = sum(abs2(w[i]) / (1 + abs2(w[i]) * y^2)^(3 / 2) for i in 1:d)
+    max_dev(l, u) = hpp(l) / hp(u) / 2
+    lower = -(d + 1) / dual_zeta
+    upper = -inv(dual_zeta)
+    new_bound = rootnewton(lower, upper, h, hp, hpp, max_dev)
+
+    # z * w / 2
+    zw2 = copy(w)
+    for i in eachindex(w)
+        if abs(w[i]) .< 100eps(T)
+            zw2[i] = new_bound^2 * w[i] / 2
+        else
+            zw2[i] = (-1 + sqrt(1 + abs2(w[i]) * new_bound^2)) / w[i]
+        end
+    end
+    return (new_bound, zw2)
+end
+
+# FIXME for reals only
+function update_dual_grad(
+    cone::EpiNormInf{T, R},
+    ) where {T <: Real, R <: RealOrComplex{T}}
+    u = cone.dual_point[1]
+    w = vec_copyto!(copy(cone.w), cone.dual_point[2:end])
+
+    (new_bound, zw2) = epinorminf_dg(u, w, cone.d, cone.dual_zeta)
+    cone.dual_grad[1] = new_bound
+    @views vec_copyto!(cone.dual_grad[2:end], zw2)
+
+    cone.dual_grad_updated = true
+    return cone.dual_grad
 end
 
 function update_hess(cone::EpiNormInf)
@@ -326,6 +376,54 @@ function inv_hess_prod!(
     return prod
 end
 
+# remove if becomes fallback
+function inv_scal_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::EpiNormInf{T, T},
+    ) where {T <: Real}
+
+    s = cone.point
+    z = cone.dual_point
+    ts = -dual_grad(cone)
+    tz = -grad(cone)
+
+    nu = get_nu(cone)
+    cone_mu = dot(s, z) / nu
+    tmu = dot(ts, tz) / nu
+
+    ds = s - cone_mu * ts
+    dz = z - cone_mu * tz
+    Hts = hess_prod!(copy(ts), ts, cone)
+    tol = sqrt(eps(T))
+    # tol = 1000eps(T)
+    if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
+        (abs(dot(ts, Hts) - nu * tmu^2) < tol)
+        # @show "~~ skipping updates ~~"
+        inv_hess_prod!(prod, arr, cone)
+        prod ./= cone_mu
+    else
+        v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
+        # TODO dot(ts, Hts) - nu * tmu^2 should be negative
+        v2 = sqrt(cone_mu) * (Hts - tmu * tz) / sqrt(abs(dot(ts, Hts) - nu * tmu^2))
+
+        c1 = 1 / sqrt(2 * cone_mu * nu)
+        U = hcat(c1 * dz, c1 * v1, -v2)
+        V = hcat(c1 * v1, c1 * dz, v2)'
+
+        t1 = inv_hess_prod!(copy(arr), arr, cone) / cone_mu
+        t2 = V * t1
+        t3 = inv_hess_prod!(copy(U), U, cone) / cone_mu
+        t4 = I + V * t3
+        t5 = t4 \ t2
+        t6 = U * t5
+        t7 = inv_hess_prod!(copy(t6), t6, cone) / cone_mu
+        prod .= t1 - t7
+    end
+
+    return prod
+end
+
 function inv_hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,
@@ -405,6 +503,59 @@ function dder3(cone::EpiNormInf{T, Complex{T}}, dir::AbstractVector{T}) where T
 
     @. w2 = (s1 * rui + s2 * mu) / zeta
     @views vec_copyto!(dder3[2:end], w2)
+
+    return dder3
+end
+
+function dder3(
+    cone::EpiNormInf{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    dder3 = cone.dder3
+    point = cone.point
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+    u = point[1]
+    w = cone.w
+    z = cone.zeta * 2 * u
+    #
+    #
+    # # H[1, 1] = sum(pdir[2:end] .* 4w .* (4u^2 ./ z.^3 - 1 ./ z.^2)) +
+    # #     pdir[1] * (sum(4u ./ z.^3 .* (3z .- 4u^2)) + 2 * (cone.d - 1) / u^3)
+    # H[1, 1] = pdir[1] * 2 * (cone.d - 1) / u^3 + sum(
+    #     16 * (pdir[2:end] .* w * u^2 .- u^3 * pdir[1]) ./ z.^3 +
+    #     4 * (-pdir[2:end] .* w .+ 3u * pdir[1]) ./ z.^2
+    #     )
+    # H[1, 2:end] .= 16 * (pdir[1] * w * u^2 - pdir[2:end] * u .* w.^2) ./ z.^3 +
+    #     4 * (-pdir[1] * w - pdir[2:end] * u) ./ z.^2
+    # H[2:end, 2:end] = Diagonal(
+    #     16 * w.^2 .* (-pdir[1] * u .+ pdir[2:end] .* w) ./ z.^3 +
+    #     4 * (-pdir[1] * u .+ 3w .* pdir[2:end]) ./ z.^2
+    #     )
+
+    dder3[1] = pdir[1] * 2 * (cone.d - 1) / u^3 * d1[1] +
+        sum(
+        16u * (
+            (-d1[1] * u .+ d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
+        ) ./ z.^3 +
+        4 * (
+            u * (d1[1] * pdir[1] * 3 .- pdir[2:end] .* d1[2:end]) +
+            w .* (-d1[1] .* pdir[2:end] - pdir[1] * d1[2:end] )
+            ) ./ z.^2
+        )
+
+    dder3[2:end] .= (
+        16 * w .* (
+            (d1[1] * u .- d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
+            ) ./ z.^3 +
+        4 * (
+            u * (-pdir[1] * d1[2:end] - d1[1] * pdir[2:end]) +
+            w .* (-pdir[1] * d1[1] .+ 3 * pdir[2:end] .* d1[2:end])
+            # -pdir[1] * (w * d1[1] + d1[2:end] * u) -
+            # pdir[2:end] .* (u * d1[1] .- 3w .* d1[2:end])
+            ) ./ z.^2
+        )
+    dder3 ./= 2
 
     return dder3
 end

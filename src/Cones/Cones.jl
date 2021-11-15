@@ -186,6 +186,9 @@ function setup_data!(cone::Cone{T}) where {T <: Real}
     if hasproperty(cone, :dder3)
         cone.dder3 = zeros(T, dim)
     end
+    if use_scal(cone)
+        cone.dual_grad = zeros(T, dim)
+    end
     cone.vec1 = zeros(T, dim)
     cone.vec2 = zeros(T, dim)
     setup_extra_data!(cone)

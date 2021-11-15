@@ -61,7 +61,6 @@ reset_data(cone::HypoPerLog) = (cone.feas_updated = cone.grad_updated =
 
 function setup_extra_data!(cone::HypoPerLog{T}) where {T <: Real}
     d = cone.dim - 2
-    cone.dual_grad = zeros(T, 2 + d)
     cone.tempw = zeros(T, d)
     return cone
 end

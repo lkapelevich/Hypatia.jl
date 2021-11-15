@@ -48,7 +48,6 @@ mutable struct EpiPerSquare{T <: Real} <: Cone{T}
         @assert dim >= 3
         cone = new{T}()
         cone.dim = dim
-        cone.dual_grad = zeros(T, dim)
         cone.nt_point = zeros(T, dim)
         cone.nt_point_sqrt = zeros(T, dim)
         return cone

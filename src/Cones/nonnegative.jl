@@ -32,7 +32,6 @@ mutable struct Nonnegative{T <: Real} <: Cone{T}
         @assert dim >= 1
         cone = new{T}()
         cone.dim = dim
-        cone.dual_grad = zeros(T, dim)
         return cone
     end
 end

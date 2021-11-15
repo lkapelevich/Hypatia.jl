@@ -81,7 +81,6 @@ function setup_extra_data!(cone::GeneralizedPower{T}) where {T <: Real}
     cone.w_idxs = (m + 1):cone.dim
     cone.tempu1 = zeros(T, m)
     cone.tempu2 = zeros(T, m)
-    cone.dual_grad = zeros(T, cone.dim)
     return cone
 end
 

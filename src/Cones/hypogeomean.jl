@@ -64,7 +64,6 @@ reset_data(cone::HypoGeoMean) = (cone.feas_updated = cone.grad_updated =
 function setup_extra_data!(cone::HypoGeoMean{T}) where {T <: Real}
     d = cone.dim - 1
     cone.di = inv(T(d))
-    cone.dual_grad = zeros(T, 1 + d)
     cone.tempw = zeros(T, d)
     return cone
 end

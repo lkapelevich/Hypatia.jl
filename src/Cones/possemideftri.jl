@@ -74,7 +74,6 @@ use_sqrt_scal_hess_oracles(::Int, cone::PosSemidefTri) = true
 function setup_extra_data!(
     cone::PosSemidefTri{T, R},
     ) where {T <: Real, R <: RealOrComplex{T}}
-    cone.dual_grad = zeros(T, cone.dim)
     cone.mat = zeros(R, cone.side, cone.side)
     cone.dual_mat = zero(cone.mat)
     cone.mat2 = zero(cone.mat)

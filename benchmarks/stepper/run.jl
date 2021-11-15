@@ -14,7 +14,7 @@ include(joinpath(@__DIR__, "../../examples/Examples.jl"))
 using Main.Examples
 
 # path to write results DataFrame to CSV
-results_path = joinpath(mkpath(joinpath(@__DIR__, "raw")), "bench.csv")
+results_path = joinpath(mkpath(joinpath(@__DIR__, "raw")), "dev.csv")
 
 # script verbosity
 script_verbose = false

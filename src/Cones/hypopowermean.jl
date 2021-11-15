@@ -66,7 +66,6 @@ reset_data(cone::HypoPowerMean) = (cone.feas_updated = cone.grad_updated =
     cone.hess_fact_updated = cone.scal_hess_fact_updated = false)
 
 function setup_extra_data!(cone::HypoPowerMean{T}) where {T <: Real}
-    cone.dual_grad = zeros(T, cone.dim)
     cone.tempw1 = zeros(T, cone.dim - 1)
     cone.tempw2 = zero(cone.tempw1)
     return cone
