@@ -155,8 +155,7 @@ function conj_tgp(pr::Vector{T}, alpha::Vector{T}, k::T) where {T <: Real}
     fpp_abs(y) = 2 * sum(ai^3 / (ai * y + (1 + ai) / p)^2 for ai in alpha) + 2 * (y^2 + 2 / p^2) / (y^2 * (y + 2 / p)^2)
     @assert fpp_abs(inner_bound) > fpp_abs(outer_bound) > 0
 
-    max_dev(outer, inner) = fpp_abs(inner_bound) /
-        (4 * abs((outer_bound + 1 / p) / (outer_bound * (outer_bound + 2 / p))))
+    max_dev(outer, inner) = fpp_abs(inner) / 2 / abs(fp(outer))
     new_bound = rootnewton(outer_bound, inner_bound, f, fp, fpp_abs, max_dev)
 
     return new_bound
