@@ -176,7 +176,7 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
 
     if iszero(w2)
         @. g[w_idxs] = 0
-        zeta = dual_z
+        @. g[u_idxs] = -(α + 1) / u
     else
         if all(isequal(inv(T(m))), α)
             tgw = -1 / w2s - (1 + 1 / w2s * sqrt(dual_z * (m^2 / w2s^2 * dual_z +
@@ -184,12 +184,9 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
         else
             tgw = conj_tgp(vcat(w2s, u), α, dual_z)
         end
-        zeta = 2 * tgw / w2s
         @. @views g[w_idxs] = w * tgw / w2s
+        @. g[u_idxs] = -(α * (1 + w2s * tgw) + 1) / u
     end
-
-    @views phitgr = zeta + sum(abs2, g[w_idxs])
-    @. g[u_idxs] = -(2 * α * phitgr + (1 - α) * zeta) / u / zeta
 
     cone.dual_grad_updated = true
     return cone.dual_grad
