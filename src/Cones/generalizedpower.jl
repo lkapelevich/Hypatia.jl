@@ -139,28 +139,6 @@ function update_grad(cone::GeneralizedPower)
     return cone.grad
 end
 
-function conj_tgp(pr::Vector{T}, alpha::Vector{T}, k::T) where {T <: Real}
-    (p, r) = (pr[1], pr[2:end])
-
-    phi(w) = exp(sum(2 * alpha .* log.(w)))
-    d = length(alpha)
-    inner_bound = -1 / p - (1 + sign(p) * 1 / p * sqrt(k * (d^2 / p^2 * k + d^2 - 1))) / (p / d - d * k / p)
-    gamma = abs(p) / sqrt(phi(r ./ alpha))
-    outer_bound = (1 + d) * gamma / (1 - gamma) / p
-
-    f(y) = sum(2 * ai * log(2 * ai * y^2 + (1 + ai) * 2 * y / p) for ai in alpha) -
-        log(k) - log(2 * y / p + y^2) - 2 * log(2 * y / p)
-    fp(y) = 2 * sum(ai^2 / (ai * y + (1 + ai) / p) for ai in alpha) -
-        2 * (y + 1 / p) / y / (y + 2 / p)
-    fpp_abs(y) = 2 * sum(ai^3 / (ai * y + (1 + ai) / p)^2 for ai in alpha) + 2 * (y^2 + 2 / p^2) / (y^2 * (y + 2 / p)^2)
-    @assert fpp_abs(inner_bound) > fpp_abs(outer_bound) > 0
-
-    max_dev(outer, inner) = fpp_abs(inner) / 2 / abs(fp(outer))
-    new_bound = rootnewton(outer_bound, inner_bound, f, fp, fpp_abs, max_dev)
-
-    return new_bound
-end
-
 function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
     u_idxs = cone.u_idxs
     w_idxs = cone.w_idxs
@@ -169,20 +147,33 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
     α = cone.α
     g = cone.dual_grad
 
-    m = length(u)
-    dual_z = exp(sum(2 * α .* log.(u)))
-    w2 = cone.dual_w2
-    w2s = sqrt(w2)
-
-    if iszero(w2)
+    if iszero(cone.dual_w2)
         @. g[w_idxs] = 0
         @. g[u_idxs] = -(α + 1) / u
     else
+        m = length(u)
+        w2s = sqrt(cone.dual_w2)
+        log_u = 2 * sum(αi * log(ui) for (αi, ui) in zip(α, u))
+        ϕ_u = exp(log_u)
+        inner_bound = -1 / w2s - (1 + 1 / w2s * sqrt(ϕ_u * (m^2 / w2s^2 * ϕ_u +
+            m^2 - 1))) / (w2s / m - m * ϕ_u / w2s)
         if all(isequal(inv(T(m))), α)
-            tgw = -1 / w2s - (1 + 1 / w2s * sqrt(dual_z * (m^2 / w2s^2 * dual_z +
-                m^2 - 1))) / (w2s / m - m * dual_z / w2s)
+            tgw = inner_bound
         else
-            tgw = conj_tgp(vcat(w2s, u), α, dual_z)
+            ϕ_αu = exp(sum(αi * log(ui / αi) for (αi, ui) in zip(α, u)))
+            gamma = abs(w2s) / ϕ_αu
+            outer_bound = (1 + m) * gamma / (1 - gamma) / w2s
+
+            f(y) = 2 * sum(αi * log(2 * αi * y^2 + (1 + αi) * 2 * y / w2s) for αi in α) -
+                log_u - log(2 * y / w2s + y^2) - 2 * log(2 * y / w2s)
+            fp(y) = 2 * (sum(αi^2 / (αi * y + (1 + αi) / w2s) for αi in α) -
+                (y + 1 / w2s) / y / (y + 2 / w2s))
+            fpp_abs(y) = 2 * (sum(αi^3 / (αi * y + (1 + αi) / w2s)^2 for αi in α) +
+                (y^2 + 2 / w2s^2) / (y^2 * (y + 2 / w2s)^2))
+            @assert fpp_abs(inner_bound) > fpp_abs(outer_bound) > 0
+
+            max_dev(outer, inner) = fpp_abs(inner) / abs(fp(outer)) / 2
+            tgw = rootnewton(outer_bound, inner_bound, f, fp, fpp_abs, max_dev)
         end
         @. @views g[w_idxs] = w * tgw / w2s
         @. g[u_idxs] = -(α * (1 + w2s * tgw) + 1) / u
