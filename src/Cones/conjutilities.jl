@@ -87,35 +87,29 @@ function rootnewton(
     upper::T,
     f::Function,
     g::Function,
-    h_abs::Function,
-    max_dev::Function;
-    max_dev_init::T = max_dev(lower, upper),
+    init::T = (lower + upper) / 2,
     ) where {T <: Real}
-    C = max_dev_init
-    gap = upper - lower
-    # bisection until quadratic convergence is guaranteed
-    while C * abs(gap) > 1
-        # uses the fact that f is nondecreasing
-        new_bound = (lower + upper) / 2
-        if f(new_bound) > 0
-            upper = new_bound
-        elseif f(new_bound) < 0
-            lower = new_bound
-        else
-            return new_bound
-        end
-        C = max_dev(lower, upper)
-        gap = upper - lower
-    end
-    new_bound = (lower + upper) / 2
+    curr = init
+    f_new = f(BigFloat(curr))
     iter = 0
-    while abs(f(new_bound)) > 1000eps(T)
-        new_bound -= f(BigFloat(new_bound)) / g(BigFloat(new_bound))
+    while abs(f_new) > 1000eps(T)
+        if f_new < 0
+            lower = curr
+        else
+            upper = curr
+        end
+        candidate = curr - f_new / g(BigFloat(curr))
+        if (candidate < lower) || (candidate > upper)
+            curr = (lower + upper) / 2
+        else
+            curr = candidate
+        end
+        f_new = f(BigFloat(curr))
         iter += 1
         if iter > 200
             @warn "too many iters in dual grad"
             break
         end
     end
-    return T(new_bound)
+    return T(curr)
 end

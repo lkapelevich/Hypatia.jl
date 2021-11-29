@@ -162,25 +162,27 @@ function update_grad(cone::EpiNormInf{T}) where T
     return cone.grad
 end
 
-function epinorminf_dg(u::T, w::AbstractVector{T}, d::Int, dual_zeta::T) where T
+function epinorminf_dg(u::T, w::AbstractVector{T}, d::Int, dual_zeta::T,
+    init::T) where T
     h(y) = u * y + sum(sqrt(1 + abs2(w[i]) * y^2) for i in 1:d) + 1
     hp(y) = u + sum(abs2(w[i]) * y * (1 + abs2(w[i]) * y^2)^(-1/2) for i in 1:d)
-    hpp(y) = sum(abs2(w[i]) / (1 + abs2(w[i]) * y^2)^(3 / 2) for i in 1:d)
-    max_dev(l, u) = hpp(l) / hp(u) / 2
+    # hpp(y) = sum(abs2(w[i]) / (1 + abs2(w[i]) * y^2)^(3 / 2) for i in 1:d)
+    # max_dev(l, u) = hpp(l) / hp(u) / 2
     lower = -(d + 1) / dual_zeta
     upper = -inv(dual_zeta)
-    new_bound = rootnewton(lower, upper, h, hp, hpp, max_dev)
+    # dgu = rootnewton(lower, upper, h, hp, hpp, max_dev)
+    dgu = rootnewton(lower, upper, h, hp)
 
     # z * w / 2
     zw2 = copy(w)
     for i in eachindex(w)
         if abs(w[i]) .< 100eps(T)
-            zw2[i] = new_bound^2 * w[i] / 2
+            zw2[i] = dgu^2 * w[i] / 2
         else
-            zw2[i] = (-1 + sqrt(1 + abs2(w[i]) * new_bound^2)) / w[i]
+            zw2[i] = (-1 + sqrt(1 + abs2(w[i]) * dgu^2)) / w[i]
         end
     end
-    return (new_bound, zw2)
+    return (dgu, zw2)
 end
 
 # FIXME for reals only
@@ -190,8 +192,8 @@ function update_dual_grad(
     u = cone.dual_point[1]
     w = vec_copyto!(copy(cone.w), cone.dual_point[2:end])
 
-    (new_bound, zw2) = epinorminf_dg(u, w, cone.d, cone.dual_zeta)
-    cone.dual_grad[1] = new_bound
+    (dgu, zw2) = epinorminf_dg(u, w, cone.d, cone.dual_zeta, -cone.point[1])
+    cone.dual_grad[1] = dgu
     @views vec_copyto!(cone.dual_grad[2:end], zw2)
 
     cone.dual_grad_updated = true

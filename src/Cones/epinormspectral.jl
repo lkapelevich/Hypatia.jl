@@ -235,7 +235,7 @@ function update_dual_grad(
     dual_zeta = u - sum(dual_W_svd.S)
     w = dual_W_svd.S
 
-    (new_bound, zw2) = epinorminf_dg(u, w, cone.d1, dual_zeta)
+    (new_bound, zw2) = epinorminf_dg(u, w, cone.d1, dual_zeta, -cone.point[1])
 
     cone.dual_grad[1] = new_bound
     cone.dual_grad[2:end] .= vec(dual_W_svd.U * Diagonal(zw2) * dual_W_svd.Vt)
