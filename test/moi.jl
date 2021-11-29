@@ -5,75 +5,44 @@ MOI.Test linear and conic tests
 using Test
 import MathOptInterface
 const MOI = MathOptInterface
-const MOIT = MOI.Test
-const MOIU = MOI.Utilities
 import Hypatia
 
-unit_exclude = [
-    "solve_qcp_edge_cases",
-    "solve_qp_edge_cases",
-    "solve_integer_edge_cases",
-    "solve_objbound_edge_cases",
-    "solve_zero_one_with_bounds_1",
-    "solve_zero_one_with_bounds_2",
-    "solve_zero_one_with_bounds_3",
-    "solve_unbounded_model", # dual equalities are inconsistent, so detect dual infeasibility but currently no certificate or status
-    "number_threads", # no way to set threads currently
-    "solve_result_index", # TODO only get one result from Hypatia
-    ]
-
-conic_exclude = String[
-    # "lin",
-    # "sdp",
-    # "norminf",
-    # "normone",
-    # "soc",
-    # "rsoc",
-    # "normspec",
-    # "normnuc",
-    # "pow",
-    # "dualpow",
-    # "geomean",
-    # "rootdet",
-    "rootdets",
-    # "exp",
-    # "dualexp",
-    # "logdet",
-    "logdets",
-    # "relentr",
-    ]
-
 function test_moi(T::Type{<:Real}; solver_options...)
-    optimizer = MOIU.CachingOptimizer(
-        MOIU.UniversalFallback(MOIU.Model{T}()),
-        Hypatia.Optimizer{T}(; solver_options...)
-        )
+    optimizer = MOI.Utilities.CachingOptimizer(
+        MOI.Utilities.UniversalFallback(MOI.Utilities.Model{T}()),
+        Hypatia.Optimizer{T}(; solver_options...),
+    )
 
-    tol = 2sqrt(sqrt(eps(T)))
-    config = MOIT.TestConfig{T}(
+    tol = 2 * sqrt(sqrt(eps(T)))
+    config = MOI.Test.Config(
+        T,
         atol = tol,
         rtol = tol,
-        solve = true,
-        query = true,
-        modify_lhs = true,
-        duals = true,
-        infeas_certificates = true,
-        )
+        exclude = Any[
+            MOI.ConstraintBasisStatus,
+            MOI.VariableBasisStatus,
+            MOI.ConstraintName,
+            MOI.VariableName,
+            MOI.ObjectiveBound,
+        ],
+    )
 
-    @testset "linear tests" begin
-        MOIT.contlineartest(optimizer, config)
-    end
+    excludes = String[
+        # not implemented:
+        "test_attribute_SolverVersion",
+        # TODO investigate why these run at all:
+        "Indicator", 
+        "Integer",
+        "ZeroOne",
+        # TODO fix:
+        "test_model_copy_to_Unsupported",
+        "test_solve_ObjectiveBound_MAX_SENSE_LP",
+        "test_unbounded",
+        "test_solve_result_index",
+    ]
+    includes = String[]
 
-    if T == Float64
-        # test other real types, waiting for https://github.com/jump-dev/MathOptInterface.jl/issues/841
-        @testset "unit tests" begin
-            MOIT.unittest(optimizer, config, unit_exclude)
-        end
-        @testset "conic tests" begin
-            bridged = MOI.Bridges.Constraint.Square{T}(optimizer)
-            MOIT.contconictest(bridged, config, conic_exclude)
-        end
-    end
+    MOI.Test.runtests(optimizer, config, include = includes, exclude = excludes)
 
     return
 end
