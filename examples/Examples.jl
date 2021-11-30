@@ -81,7 +81,7 @@ const JuMP_examples = [
     "robustgeomprog",
     # "semidefinitepoly",
     "shapeconregr",
-    # "signomialmin",
+    "signomialmin",
     # "sparselmi",
     # "stabilitynumber",
     ]
