@@ -160,21 +160,11 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
         if all(isequal(inv(T(m))), α)
             tgw = inner_bound
         else
-            ϕ_αu = exp(sum(αi * log(ui / αi) for (αi, ui) in zip(α, u)))
-            gamma = abs(w2s) / ϕ_αu
-            outer_bound = (1 + m) * gamma / (1 - gamma) / w2s
-
             f(y) = 2 * sum(αi * log(2 * αi * y^2 + (1 + αi) * 2 * y / w2s) for αi in α) -
                 log_u - log(2 * y / w2s + y^2) - 2 * log(2 * y / w2s)
             fp(y) = 2 * (sum(αi^2 / (αi * y + (1 + αi) / w2s) for αi in α) -
                 (y + 1 / w2s) / y / (y + 2 / w2s))
-            # fpp_abs(y) = 2 * (sum(αi^3 / (αi * y + (1 + αi) / w2s)^2 for αi in α) +
-            #     (y^2 + 2 / w2s^2) / (y^2 * (y + 2 / w2s)^2))
-            # @assert fpp_abs(inner_bound) > fpp_abs(outer_bound) > 0
-
-            # max_dev(outer, inner) = fpp_abs(inner) / abs(fp(outer)) / 2
-            # tgw = rootnewton(outer_bound, inner_bound, f, fp, fpp_abs, max_dev)
-            tgw = rootnewton(outer_bound, inner_bound, f, fp, cone.w2)
+            tgw = rootnewton(f, fp, init = inner_bound, increasing = false)
         end
         @. @views g[w_idxs] = w * tgw / w2s
         @. g[u_idxs] = -(α * (1 + w2s * tgw) + 1) / u

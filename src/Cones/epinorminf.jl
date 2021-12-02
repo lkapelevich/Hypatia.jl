@@ -162,16 +162,10 @@ function update_grad(cone::EpiNormInf{T}) where T
     return cone.grad
 end
 
-function epinorminf_dg(u::T, w::AbstractVector{T}, d::Int, dual_zeta::T,
-    init::T) where T
+function epinorminf_dg(u::T, w::AbstractVector{T}, d::Int, dual_zeta::T) where T
     h(y) = u * y + sum(sqrt(1 + abs2(w[i]) * y^2) for i in 1:d) + 1
     hp(y) = u + sum(abs2(w[i]) * y * (1 + abs2(w[i]) * y^2)^(-1/2) for i in 1:d)
-    # hpp(y) = sum(abs2(w[i]) / (1 + abs2(w[i]) * y^2)^(3 / 2) for i in 1:d)
-    # max_dev(l, u) = hpp(l) / hp(u) / 2
-    lower = -(d + 1) / dual_zeta
-    upper = -inv(dual_zeta)
-    # dgu = rootnewton(lower, upper, h, hp, hpp, max_dev)
-    dgu = rootnewton(lower, upper, h, hp)
+    dgu = rootnewton(h, hp, init = min(-inv(dual_zeta), -(d + 1) / u))
 
     # z * w / 2
     zw2 = copy(w)
@@ -192,7 +186,7 @@ function update_dual_grad(
     u = cone.dual_point[1]
     w = vec_copyto!(copy(cone.w), cone.dual_point[2:end])
 
-    (dgu, zw2) = epinorminf_dg(u, w, cone.d, cone.dual_zeta, -cone.point[1])
+    (dgu, zw2) = epinorminf_dg(u, w, cone.d, cone.dual_zeta)
     cone.dual_grad[1] = dgu
     @views vec_copyto!(cone.dual_grad[2:end], zw2)
 

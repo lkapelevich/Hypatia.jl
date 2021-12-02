@@ -141,6 +141,7 @@ function update_stepper_points(
         alpha2 = 1 - cbrt(gamma)
         dir_predadj = (ztsk_only ? stepper.dir_predadj.ztsk : stepper.dir_predadj.vec)
         @. cand += alpha2 * (dir_cent * gamma + (1 - gamma) * dir_pred + dir_predadj)
+        # @. cand += gamma * dir_cent + (1 - gamma) * (dir_pred + (1 - gamma) * dir_predadj)
     elseif stepper.pred_only
         @. cand += alpha * dir_pred
     else
@@ -200,6 +201,9 @@ function check_cone_points(
                 proxcompl_k = Cones.get_proxcompl(cone_k, mu)
                 agg_proxcompl = min(agg_proxcompl, proxcompl_k)
                 in_prox_k = (agg_proxcompl > β)
+
+                # proxsqr_k = Cones.get_proxsqr(cone_k, inv(mu), use_max_prox)
+                # in_prox_k = (proxsqr_k < T(0.9999))
             else
                 proxsqr_k = Cones.get_proxsqr(cone_k, irtmu, use_max_prox)
                 in_prox_k = (proxsqr_k < T(0.99))
