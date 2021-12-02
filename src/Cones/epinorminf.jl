@@ -163,9 +163,11 @@ function update_grad(cone::EpiNormInf{T}) where T
 end
 
 function epinorminf_dg(u::T, w::AbstractVector{T}, d::Int, dual_zeta::T) where T
-    h(y) = u * y + sum(sqrt(1 + abs2(w[i]) * y^2) for i in 1:d) + 1
-    hp(y) = u + sum(abs2(w[i]) * y * (1 + abs2(w[i]) * y^2)^(-1/2) for i in 1:d)
-    dgu = rootnewton(h, hp, init = min(-inv(dual_zeta), -(d + 1) / u))
+    h(y) = u * y + sum(sqrt(1 + abs2(w[i] * y)) for i in 1:d) + 1
+    hp(y) = u + y * sum(abs2(w[i]) / sqrt(1 + abs2(w[i] * y)) for i in 1:d)
+    lower = -(d + 1) / dual_zeta
+    upper = -inv(dual_zeta)
+    dgu = rootnewton(h, hp, lower = lower, upper = upper, init = lower)
 
     # z * w / 2
     zw2 = copy(w)
