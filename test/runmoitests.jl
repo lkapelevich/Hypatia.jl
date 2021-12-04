@@ -25,14 +25,19 @@ include(joinpath(@__DIR__, "moicones.jl"))
     end
 end
 
-@testset "MOI.Test tests" begin
-    println("\nstarting MOI.Test tests")
-    # TODO test other real types
-    T = Float64
+# real types, tolerances, and tests to include for MOI.Test tests
+test_T = [
+    (Float64, 2 * sqrt(sqrt(eps())), 4, String[]),
+    # TODO add test_linear after MOI 0.10.7 is tagged:
+    (BigFloat, 2 * eps(BigFloat)^0.2, 1, String["test_conic"]),
+]
+
+@testset "MOI.Test tests: $T" for (T, tol_test, tol_relax, includes) in test_T
+    println("\nstarting MOI.Test tests: $T")
     model = MOI.Bridges.full_bridge_optimizer(
         MOI.Utilities.CachingOptimizer(
             MOI.Utilities.UniversalFallback(MOI.Utilities.Model{T}()),
-            Hypatia.Optimizer{T}(; default_tol_relax = 4),
+            Hypatia.Optimizer{T}(; default_tol_relax = tol_relax),
         ),
         T,
     )
@@ -41,8 +46,8 @@ end
         model,
         MOI.Test.Config(
             T,
-            atol = 2 * sqrt(sqrt(eps(T))),
-            rtol = 2 * sqrt(sqrt(eps(T))),
+            atol = tol_test,
+            rtol = tol_test,
             exclude = Any[
                 MOI.ConstraintBasisStatus,
                 MOI.VariableBasisStatus,
@@ -50,9 +55,9 @@ end
                 MOI.SolverVersion,
             ],
         ),
+        include = includes,
         exclude = String[
-            # TODO(odow): unexpected failure. But this is probably in the bridge
-            # layer, not Hypatia.
+            # TODO(odow): unexpected failure, probably in the bridge layer
             "test_model_UpperBoundAlreadySet",
             "test_model_LowerBoundAlreadySet",
         ],
