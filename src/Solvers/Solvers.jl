@@ -357,6 +357,7 @@ function setup_stepping(solver::Solver{T}) where {T <: Real}
     solver.y_residual = zero(model.b)
     solver.z_residual = zero(model.h)
     solver.tau_residual = 0
+    point = solver.point
     solver.compl_prev = dot(point.s, point.z) + point.tau[] * point.kap[] # TODO delete
 
     solver.x_conv_tol = inv(1 + norm(model.c, Inf))
