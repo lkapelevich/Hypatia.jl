@@ -61,7 +61,7 @@ end
 
 use_dual_barrier(::PosSemidefTri) = false
 
-use_scal(::PosSemidefTri{T, T}) where {T <: Real} = true
+use_scal(::PosSemidefTri) = true
 
 reset_data(cone::PosSemidefTri) = (cone.feas_updated = cone.dual_feas_updated =
     cone.grad_updated =
@@ -341,15 +341,15 @@ function dder3(cone::PosSemidefTri, dir::AbstractVector)
 end
 
 function dder3(
-    cone::PosSemidefTri{T},
+    cone::PosSemidefTri{T, R},
     pdir::AbstractVector{T},
     ddir::AbstractVector{T},
-    ) where {T <: Real}
+    ) where {T <: Real, R <: RealOrComplex{T}}
     @assert cone.grad_updated
     dder3 = cone.dder3
     d = cone.side
-    P = Hermitian(svec_to_smat!(zeros(T, d, d), pdir, cone.rt2), :U)
-    D = Hermitian(svec_to_smat!(zeros(T, d, d), ddir, cone.rt2), :U)
+    P = Hermitian(svec_to_smat!(zeros(R, d, d), pdir, cone.rt2), :U)
+    D = Hermitian(svec_to_smat!(zeros(R, d, d), ddir, cone.rt2), :U)
     Si = Hermitian(cone.inv_mat, :U)
     PD = P * D
     smat_to_svec!(dder3, (Si * PD + PD' * Si) / -2, cone.rt2)

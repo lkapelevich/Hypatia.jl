@@ -167,6 +167,7 @@ function update_dual_grad(cone::GeneralizedPower{T}) where {T <: Real}
                 log_u - log(2 * y / w2s + y^2) - 2 * log(2 * y / w2s)
             fp(y) = 2 * (sum(αi^2 / (αi * y + (1 + αi) / w2s) for αi in α) -
                 (y + 1 / w2s) / y / (y + 2 / w2s))
+            # lower_bound for init a little more robust but slower?
             tgw = rootnewton(f, fp, lower = inner_bound, upper = outer_bound,
                 init = outer_bound, increasing = false)
         end

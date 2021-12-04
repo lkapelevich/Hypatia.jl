@@ -70,7 +70,7 @@ mutable struct HypoRootdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     end
 end
 
-use_scal(::HypoRootdetTri{T, T}) where {T <: Real} = true
+use_scal(::HypoRootdetTri) = true
 
 reset_data(cone::HypoRootdetTri) = (cone.feas_updated = cone.grad_updated =
     cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
@@ -383,13 +383,13 @@ function dder3(
 
     rwi = Wi * r_mat
     zwi = Wi * z_mat
-    tr_rwi = dot(r_mat, Wi) * di
-    tr_zwi = dot(z_mat, Wi) * di
+    tr_rwi = real(dot(r_mat, Wi)) * di
+    tr_zwi = real(dot(z_mat, Wi)) * di
 
     χ_1 = -p + ϕ * tr_rwi
     χ_2 = -x + ϕ * tr_zwi
 
-    dot_rzwi = dot(Wi * r_mat * Wi, z_mat)
+    dot_rzwi = real(dot(Wi * r_mat * Wi, z_mat))
     c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * ϕ * (tr_rwi * tr_zwi - di * dot_rzwi)
 
     dder3[1] = -c1

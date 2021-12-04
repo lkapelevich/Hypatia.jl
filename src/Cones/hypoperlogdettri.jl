@@ -68,7 +68,7 @@ mutable struct HypoPerLogdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     end
 end
 
-use_scal(::HypoPerLogdetTri{T, T}) where {T <: Real} = true
+use_scal(::HypoPerLogdetTri) = true
 
 reset_data(cone::HypoPerLogdetTri) = (cone.feas_updated = cone.grad_updated =
     cone.dual_grad_updated = cone.hess_updated = cone.scal_hess_updated =
@@ -400,10 +400,10 @@ function dder3(cone::HypoPerLogdetTri, dir::AbstractVector)
 end
 
 function dder3(
-    cone::HypoPerLogdetTri{T},
+    cone::HypoPerLogdetTri{T, R},
     pdir::AbstractVector{T},
     ddir::AbstractVector{T},
-    ) where {T <: Real}
+    ) where {T <: Real, R <: RealOrComplex{T}}
     @assert cone.grad_updated
     dder3 = cone.dder3
     d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
@@ -424,19 +424,19 @@ function dder3(
     r_mat = Hermitian(svec_to_smat!(copy(cone.mat), r, cone.rt2), :U)
     z_mat = Hermitian(svec_to_smat!(copy(cone.mat), z, cone.rt2), :U)
 
-    χ_1 = -p + q * σ + v * dot(r_mat, Wi)
-    χ_2 = -x + y * σ + v * dot(z_mat, Wi)
+    χ_1 = -p + q * σ + v * real(dot(r_mat, Wi))
+    χ_2 = -x + y * σ + v * real(dot(z_mat, Wi))
     ζ_χ_q = χ_1 / ζ - q / v
     ζ_χ_y = χ_2 / ζ - y / v
     wiv_ξ_1 = -q / v * I + Wi * r_mat
     wiv_ξ_2 = -y / v * I + Wi * z_mat
-    wiv_ξ_dot = dot(wiv_ξ_1, wiv_ξ_2')
+    wiv_ξ_dot = real(dot(wiv_ξ_1, wiv_ξ_2'))
 
     c1 = (2 * χ_1 * χ_2 / ζ - v * wiv_ξ_dot) / ζ^2
 
     dder3[1] = -c1
     τWvi = (-wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + wiv_ξ_1 * wiv_ξ_2 + wiv_ξ_2 * wiv_ξ_1) / ζ
-    dder3[2] = c1 * σ - tr(τWvi) - 2 * q * y / v^3 + wiv_ξ_dot / ζ
+    dder3[2] = c1 * σ - real(tr(τWvi)) - 2 * q * y / v^3 + wiv_ξ_dot / ζ
     dder3_W = c1 * v * Wi + τWvi * v * Wi - Wi * r_mat * Wi * z_mat * Wi - Wi * z_mat * Wi * r_mat * Wi
     @views smat_to_svec!(dder3[3:end], dder3_W, cone.rt2)
     dder3 ./= 2

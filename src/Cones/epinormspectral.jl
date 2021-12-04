@@ -90,7 +90,7 @@ mutable struct EpiNormSpectral{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     end
 end
 
-use_scal(::EpiNormSpectral{T, T}) where {T <: Real} = true
+use_scal(::EpiNormSpectral) = true
 
 reset_data(cone::EpiNormSpectral) = (cone.feas_updated = cone.grad_updated =
     cone.hess_updated = cone.inv_hess_updated = cone.hess_aux_updated =
@@ -238,7 +238,8 @@ function update_dual_grad(
     (new_bound, zw2) = epinorminf_dg(u, w, cone.d1, dual_zeta)
 
     cone.dual_grad[1] = new_bound
-    cone.dual_grad[2:end] .= vec(dual_W_svd.U * Diagonal(zw2) * dual_W_svd.Vt)
+    @views vec_copyto!(cone.dual_grad[2:end], dual_W_svd.U * Diagonal(zw2) *
+        dual_W_svd.Vt)
 
     cone.dual_grad_updated = true
     return cone.dual_grad
@@ -486,9 +487,9 @@ end
 
 # remove if becomes fallback
 function inv_scal_hess_prod!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::EpiNormSpectral{T, T},
+    prod::AbstractVecOrMat{T},
+    arr::AbstractVecOrMat{T},
+    cone::EpiNormSpectral{T},
     ) where {T <: Real}
 
     s = cone.point
@@ -573,10 +574,10 @@ end
 
 
 function dder3(
-    cone::EpiNormSpectral{T, T},
+    cone::EpiNormSpectral{T, R},
     pdir::AbstractVector{T},
     ddir::AbstractVector{T},
-    ) where {T <: Real}
+    ) where {T <: Real, R <: RealOrComplex{T}}
     point = cone.point
     d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
     u = cone.point[1]
@@ -611,8 +612,8 @@ function dder3(
     x = d1[1]
     r = pdir[2:end]
     z = d1[2:end]
-    @views r_mat = vec_copyto!(zeros(T, cone.d1, cone.d2), r)
-    @views z_mat = vec_copyto!(zeros(T, cone.d1, cone.d2), z)
+    @views r_mat = vec_copyto!(zeros(R, cone.d1, cone.d2), r)
+    @views z_mat = vec_copyto!(zeros(R, cone.d1, cone.d2), z)
 
     Zi2W = fact_Z \ (fact_Z \ W)
     Zi3W = fact_Z \ Zi2W
@@ -634,10 +635,10 @@ function dder3(
 
     dder3[1] =
         p * x * (6 * u * trZi2 - 8 * u^3 * trZi3 + (cone.d1 - 1) / u^3) +
-        2 * dot(temp1, 4 * u^2 * Zitau - tau) +
-        -2u * dot(z_mat,
+        2 * real(dot(temp1, 4 * u^2 * Zitau - tau)) +
+        -2u * real(dot(z_mat,
         Zi * Zir * WtauI + (Zir * tau' + tau * Zir' + Zi * taur) * tau
-        )
+        ))
     @views vec_copyto!(dder3[2:end], dder3_mat)
 
     return dder3
