@@ -173,9 +173,9 @@ function epinorminf_dg(u::T, w::AbstractVector{T}, d::Int, dual_zeta::T) where T
     zw2 = copy(w)
     for i in eachindex(w)
         if abs(w[i]) .< 100eps(T)
-            zw2[i] = dgu^2 * w[i] / 2
+            zw2[i] = dgu * w[i] * dgu / 2
         else
-            zw2[i] = (-1 + sqrt(1 + abs2(w[i]) * dgu^2)) / w[i]
+            zw2[i] = sqrt(1 + abs2(w[i] * dgu)) / w[i] - 1 / w[i]
         end
     end
     return (dgu, zw2)
@@ -515,45 +515,21 @@ function dder3(
     d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
     u = point[1]
     w = cone.w
-    z = cone.zeta * 2 * u
-    #
-    #
-    # # H[1, 1] = sum(pdir[2:end] .* 4w .* (4u^2 ./ z.^3 - 1 ./ z.^2)) +
-    # #     pdir[1] * (sum(4u ./ z.^3 .* (3z .- 4u^2)) + 2 * (cone.d - 1) / u^3)
-    # H[1, 1] = pdir[1] * 2 * (cone.d - 1) / u^3 + sum(
-    #     16 * (pdir[2:end] .* w * u^2 .- u^3 * pdir[1]) ./ z.^3 +
-    #     4 * (-pdir[2:end] .* w .+ 3u * pdir[1]) ./ z.^2
-    #     )
-    # H[1, 2:end] .= 16 * (pdir[1] * w * u^2 - pdir[2:end] * u .* w.^2) ./ z.^3 +
-    #     4 * (-pdir[1] * w - pdir[2:end] * u) ./ z.^2
-    # H[2:end, 2:end] = Diagonal(
-    #     16 * w.^2 .* (-pdir[1] * u .+ pdir[2:end] .* w) ./ z.^3 +
-    #     4 * (-pdir[1] * u .+ 3w .* pdir[2:end]) ./ z.^2
-    #     )
+    mu = cone.mu
+    zeta = cone.zeta
 
-    dder3[1] = pdir[1] * 2 * (cone.d - 1) / u^3 * d1[1] +
-        sum(
-        16u * (
-            (-d1[1] * u .+ d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
-        ) ./ z.^3 +
-        4 * (
-            u * (d1[1] * pdir[1] * 3 .- pdir[2:end] .* d1[2:end]) +
-            w .* (-d1[1] .* pdir[2:end] - pdir[1] * d1[2:end] )
-            ) ./ z.^2
-        )
+    p = pdir[1]
+    x = d1[1]
+    @views r = pdir[2:end]
+    @views z = d1[2:end]
+    s1 = cone.s1
+    @. s1 = (z * mu - x) * (p - r * mu) / zeta + (x * p - r * z) / 2u
+    s2 = cone.s2
+    @. s2 = -(p * z + x * r) / 2u
 
-    dder3[2:end] .= (
-        16 * w .* (
-            (d1[1] * u .- d1[2:end] .* w) .* (pdir[1] * u .- pdir[2:end] .* w)
-            ) ./ z.^3 +
-        4 * (
-            u * (-pdir[1] * d1[2:end] - d1[1] * pdir[2:end]) +
-            w .* (-pdir[1] * d1[1] .+ 3 * pdir[2:end] .* d1[2:end])
-            # -pdir[1] * (w * d1[1] + d1[2:end] * u) -
-            # pdir[2:end] .* (u * d1[1] .- 3w .* d1[2:end])
-            ) ./ z.^2
-        )
-    dder3 ./= 2
+    dder3[1] = p * cone.cu / abs2(u) * x + sum((s1[i] + mu[i] * s2[i] +
+        x * p / u) / abs2(zeta[i]) for i in 1:cone.d)
+    @. dder3[2:end] = (s2 - mu * (s1 - r * z / u)) / abs2(zeta)
 
     return dder3
 end
@@ -620,3 +596,17 @@ hess_nz_idxs_col_tril(cone::EpiNormInf{<:Real, <:Real}, j::Int) =
 
 hess_nz_idxs_col_tril(cone::EpiNormInf{<:Real, <:Complex}, j::Int) =
     (j == 1 ? (1:cone.dim) : (iseven(j) ? [j, j + 1] : [j]))
+
+
+    # # H[1, 1] = sum(r .* 4w .* (4u^2 ./ z.^3 - 1 ./ z.^2)) +
+    # #     p * (sum(4u ./ z.^3 .* (3z .- 4u^2)) + 2 * (cone.d - 1) / u^3)
+    # H[1, 1] = p * 2 * (cone.d - 1) / u^3 + sum(
+    #     16 * (r .* w * u^2 .- u^3 * p) ./ z.^3 +
+    #     4 * (-r .* w .+ 3u * p) ./ z.^2
+    #     )
+    # H[1, 2:end] .= 16 * (p * w * u^2 - r * u .* w.^2) ./ z.^3 +
+    #     4 * (-p * w - r * u) ./ z.^2
+    # H[2:end, 2:end] = Diagonal(
+    #     16 * w.^2 .* (-p * u .+ r .* w) ./ z.^3 +
+    #     4 * (-p * u .+ 3w .* r) ./ z.^2
+    #     )

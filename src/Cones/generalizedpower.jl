@@ -437,20 +437,17 @@ function dder3(cone::GeneralizedPower{T},
     c1 = (2 * zuw - 1) * dot_auip * dot_auia + sumaudu2
     zuw1 = 2 * zuw - 1
     c10 = 4 * dot_wr_wb / zw + dot_rb
+    c2 = dot_wr * dot_auia + dot_wb * dot_auip
 
     u_dder3 .=
         zuw * (1 - zuw) * aui .* (c1 .+ (dot_auia * p + dot_auip * a) ./ u) / 2 +
-        ((α .- 1) ./ u - zuw * aui) ./ u ./ u .* a .* p +
-        zuw / zw * aui .* (
-        zuw1 * (dot_wr * dot_auia + dot_wb * dot_auip) .+
-        (dot_wr * a + dot_wb * p) ./ u .- c10
-        )
+        ((α .- 1) ./ u - zuw * aui) ./ u .* a ./ u .* p +
+        zuw / zw * aui .* (zuw1 * c2 .+ (dot_wr * a + dot_wb * p) ./ u .- c10)
 
     w_dder3 .=
-        zuw * (
-        w .* (c1 - 4 * (dot_auia * dot_wr + dot_auip * dot_wb) / zw) -
-        dot_auia * r - dot_auip * b) +
-        2 * (c10 * w + dot_wb * r + dot_wr * b) / zw
+        z * (w .* (c1 - 4 * c2 / zw) - dot_auia * r - dot_auip * b) +
+        2 * (c10 * w + dot_wb * r + dot_wr * b)
+    w_dder3 ./= zw
     w_dder3 ./= zw
 
 

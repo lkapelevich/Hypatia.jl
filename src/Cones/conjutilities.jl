@@ -4,8 +4,6 @@
 # Series approximations can be found in the book chapter ``The Wright ω Function''
 # by Corless, R. M. and Jeffrey, D. J.
 
-# FIXME broken for breakpoints e.g. z = 1
-
 function omegawright(z::T) where T
     z = float(z)
     if z < -2
@@ -54,10 +52,12 @@ end
 # end
 #
 # function omegawright(z::T) where {T <: Real}
+#     # heuristic
 #     num_terms = div(precision(float(z)), 53) * 5
 #     if z < -2
 #         t = exp(z)
-#         w = sum((-T(i))^(i - 1) / T(factorial(i)) * t^i for i in 1:num_terms)
+#         # w = sum((-T(i))^(i - 1) / T(factorial(i)) * t^i for i in 1:num_terms)
+#         w = @Base.Math.horner(t, 0, [(-T(i))^(i - 1) / T(factorial(i)) for i in 1:num_terms]...)
 #     elseif z < 1 + π
 #         z1 = z - 1
 #         w = 1 + sum(
@@ -70,8 +70,10 @@ end
 #             (i == j == 0) && return 0
 #             return (-1)^i / T(factorial(j)) * Combinatorics.stirlings1(i + j, i + 1)
 #         end
-#         w = z - lz + sum(consts_infty(i, j) * lz^j / z^(i + j) for
-#             i in 0:(num_terms - 2) for j in 0:(num_terms - 2))
+#         w = z - lz + @Base.Math.horner((lz / z), [@Base.Math.horner(inv(z),
+#             [consts_infty(i, j) for i in 0:(num_terms - 2)]...) for j in 0:(num_terms - 2)]...)
+#         # w = z - lz + sum(consts_infty(i, j) * lz^j / z^(i + j) for
+#         #     i in 0:(num_terms - 2) for j in 0:(num_terms - 2))
 #     end
 #     r = z - w - log(w)
 #     for k in 1:2
