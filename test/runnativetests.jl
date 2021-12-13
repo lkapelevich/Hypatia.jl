@@ -62,8 +62,8 @@ end
 # @testset "no preprocess tests" begin
 #     println("\nstarting no preprocess tests")
 #     for inst_name in inst_cones_few, T in diff_reals
-#         options = (; default_options..., preprocess = false, reduce = false,
-#             syssolver = Solvers.SymIndefDenseSystemSolver{T}())
+#         options = (; default_options..., rescale = false, preprocess = false,
+#             reduce = false, syssolver = Solvers.SymIndefDenseSystemSolver{T}())
 #         test_instance_solver(inst_name, T, options)
 #     end
 # end
@@ -135,6 +135,26 @@ end
 #         options = (; default_options..., verbose = verbose,
 #             stepper = Solvers.CombinedStepper{T}(shift_sched = shift))
 #         test_instance_solver(inst_name, T, options, "shift=$shift")
+#     end
+# end
+
+# @testset "model modification tests" begin
+#     println("\nstarting model modification tests")
+#     syssolvers = [
+#         (Solvers.SymIndefDenseSystemSolver, diff_reals),
+#         (Solvers.SymIndefSparseSystemSolver, [Float64,]),
+#         (Solvers.QRCholDenseSystemSolver, diff_reals),
+#         ]
+#     for inst_name in inst_modify, (syssolver, real_types) in syssolvers,
+#         T in real_types, rescale in (false, true), preprocess in (false, true),
+#         reduce in (false, true)
+#         if !preprocess
+#             reduce && continue
+#             syssolver == Solvers.QRCholDenseSystemSolver && continue
+#         end
+#         options = (; default_options..., syssolver = syssolver{T}(),
+#             rescale = rescale, preprocess = preprocess, reduce = reduce)
+#         test_instance_solver(inst_name, T, options)
 #     end
 # end
 

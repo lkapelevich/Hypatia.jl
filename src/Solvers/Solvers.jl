@@ -34,6 +34,7 @@ include("point.jl")
 @enum Status begin
     NotLoaded
     Loaded
+    Modified
     SolveCalled
     PrimalInconsistent
     DualInconsistent
@@ -51,6 +52,8 @@ include("point.jl")
     NumericalFailure
     UnknownStatus
 end
+
+const infeas_statuses = (PrimalInfeasible, DualInfeasible, NearPrimalInfeasible, NearDualInfeasible)
 
 # statuses for which near-convergence should be checked
 const check_near_statuses = (SlowProgress, IterationLimit, TimeLimit, NumericalFailure)
@@ -108,8 +111,13 @@ mutable struct Solver{T <: Real}
     model::Models.Model{T}
     x_keep_idxs::AbstractVector{Int}
     y_keep_idxs::AbstractVector{Int}
+    Ap_fact::Factorization{T}
+    Ap_rank::Int
     Ap_R::UpperTriangular{T, <:AbstractMatrix{T}}
     Ap_Q::Union{UniformScaling, AbstractMatrix{T}}
+    AG_fact::Factorization{T}
+    AG_rank::Int
+    AG_R::UpperTriangular{T, <:AbstractMatrix{T}}
     reduce_cQ1
     reduce_Rpib0
     reduce_GQ1
@@ -197,7 +205,7 @@ mutable struct Solver{T <: Real}
         if reduce
             @assert preprocess # cannot use reduction without preprocessing # TODO only need primal eq preprocessing
         end
-        # @assert !(init_use_indirect && preprocess) # cannot use preprocessing and indirect methods for initial point
+        @assert !(init_use_indirect && preprocess) # cannot use preprocessing and indirect methods for initial point
         @assert near_factor >= 1 # factor to relax tolerances by if fail to converge should be at least 1
 
         if isnothing(default_tol_power)
@@ -223,7 +231,7 @@ mutable struct Solver{T <: Real}
             tol_infeas = default_tol_tight
         end
         if isnothing(tol_illposed)
-            tol_illposed = default_tol_tight / 100
+            tol_illposed = default_tol_tight
         end
         @assert min(tol_rel_opt, tol_abs_opt, tol_feas,
             tol_infeas, tol_illposed, tol_slow) >= 0
@@ -254,13 +262,93 @@ mutable struct Solver{T <: Real}
     end
 end
 
-function solve(solver::Solver{T}) where {T <: Real}
-    (solver.status == Loaded) || return solver
-    setup_solver(solver)
-    setup_point(solver)
+function load(solver::Solver{T}, model::Models.Model{T}) where {T <: Real}
+    solver.orig_model = model
+    solver.status = Loaded
+    return
+end
 
-    if solver.status == SolveCalled
+function modify_obj_offset(solver::Solver{T}, offset_new::T) where {T <: Real}
+    solver.orig_model.obj_offset = offset_new
+    solver.status = Modified
+    return
+end
+
+function modify_c(solver::Solver{T}, c_new::AbstractVector{T}) where {T <: Real}
+    @assert length(c_new) == solver.orig_model.n
+    solver.orig_model.c = c_new
+    solver.status = Modified
+    return
+end
+
+function modify_c(
+    solver::Solver{T},
+    idxs::AbstractVector{Int},
+    c_new::Vector{T},
+    ) where {T <: Real}
+    @assert length(c_new) == length(idxs) <= solver.orig_model.n
+    solver.orig_model.c[idxs] .= c_new
+    solver.status = Modified
+    return
+end
+
+function modify_b(solver::Solver{T}, b_new::AbstractVector{T}) where {T <: Real}
+    @assert length(b_new) == solver.orig_model.p
+    solver.orig_model.b = b_new
+    solver.status = Modified
+    return
+end
+
+function modify_b(
+    solver::Solver{T},
+    idxs::AbstractVector{Int},
+    b_new::Vector{T},
+    ) where {T <: Real}
+    @assert length(b_new) == length(idxs) <= solver.orig_model.p
+    solver.orig_model.b[idxs] .= b_new
+    solver.status = Modified
+    return
+end
+
+function modify_h(solver::Solver{T}, h_new::AbstractVector{T}) where {T <: Real}
+    @assert length(h_new) == solver.orig_model.q
+    solver.orig_model.h = h_new
+    solver.status = Modified
+    return
+end
+
+function modify_h(
+    solver::Solver{T},
+    idxs::AbstractVector{Int},
+    h_new::Vector{T},
+    ) where {T <: Real}
+    @assert length(h_new) == length(idxs) <= solver.orig_model.q
+    solver.orig_model.h[idxs] .= h_new
+    solver.status = Modified
+    return
+end
+
+function solve(solver::Solver{T}) where {T <: Real}
+    init_status = solver.status
+    if !in(init_status, (Loaded, Modified))
+        @warn("solve called when solver status is $init_status")
+        return
+    end
+
+    setup_solver(solver)
+    if init_status == Modified
+        setup_modified(solver)
+    else
+        setup_loaded(solver)
+    end
+
+    if !in(solver.status, (PrimalInconsistent, DualInconsistent))
+        initialize_point(solver)
         setup_stepping(solver)
+        solver.verbose && print_header(solver.stepper, solver)
+
+        point = solver.point # TODO delete
+        solver.compl_prev = dot(point.s, point.z) + point.tau[] * point.kap[] # TODO delete
 
         while true
             step_and_check(solver) && break
@@ -281,7 +369,132 @@ function solve(solver::Solver{T}) where {T <: Real}
 
     free_memory(solver.syssolver)
     flush(stdout)
-    return solver
+    return
+end
+
+function setup_loaded(solver::Solver{T}) where {T <: Real}
+    orig_model = solver.orig_model
+    if solver.use_dense_model
+        Models.densify!(orig_model)
+    end
+    solver.result = Point(orig_model)
+
+    # copy original model to solver.model, which may be modified
+    model = solver.model = Models.Model{T}(
+        orig_model.c, orig_model.A, orig_model.b, orig_model.G, orig_model.h,
+        orig_model.cones, obj_offset = orig_model.obj_offset)
+
+    solver.time_rescale = @elapsed solver.used_rescaling = rescale_data(solver)
+
+    setup_point(solver)
+    if solver.status != SolveCalled
+        return
+    end
+
+    load(solver.stepper, solver)
+    solver.time_loadsys = @elapsed load(solver.syssolver, solver)
+
+    solver.x_residual = zero(model.c)
+    solver.y_residual = zero(model.b)
+    solver.z_residual = zero(model.h)
+    solver.tau_residual = 0
+    return
+end
+
+function setup_modified(solver::Solver{T}) where {T <: Real}
+    orig_model = solver.orig_model
+    model = solver.model
+
+    model.obj_offset = orig_model.obj_offset
+    model.c = copy(orig_model.c)
+    model.b = copy(orig_model.b)
+    model.h = copy(orig_model.h)
+    if solver.used_rescaling
+        # rescale using scalings computed during first load
+        model.c ./= solver.c_scale
+        model.b ./= solver.b_scale
+        model.h ./= solver.h_scale
+    end
+
+    update_initial_point(solver)
+
+    # TODO easier to update these system solvers (just need an update to setup_point_sub):
+    @assert solver.syssolver isa Union{QRCholSystemSolver{T}, SymIndefSystemSolver{T}}
+    set_point_sub_rhs(solver.syssolver, solver.model)
+    return
+end
+
+# preprocess and find initial point
+function setup_point(solver::Solver{T}) where {T <: Real}
+    (init_z, init_s) = initialize_cone_point(solver.orig_model)
+
+    if solver.reduce
+        solver.time_inity = @elapsed handle_primal_eq(solver)
+        solver.status == PrimalInconsistent && return
+        init_y = update_primal_eq(solver, init_z)
+
+        solver.time_initx = @elapsed handle_dual_eq(solver)
+        solver.status == DualInconsistent && return
+        init_x = update_dual_eq(solver, init_s)
+    else
+        solver.time_initx = @elapsed handle_dual_eq(solver)
+        solver.status == DualInconsistent && return
+        init_x = update_dual_eq(solver, init_s)
+
+        solver.time_inity = @elapsed handle_primal_eq(solver)
+        solver.status == PrimalInconsistent && return
+        init_y = update_primal_eq(solver, init_z)
+    end
+
+    point = solver.point = Point(solver.model)
+    point.x .= init_x
+    point.y .= init_y
+    point.z .= init_z
+    point.s .= init_s
+    return
+end
+
+function update_initial_point(solver::Solver{T}) where {T <: Real}
+    (init_z, init_s) = initialize_cone_point(solver.orig_model)
+    point = solver.point
+    if solver.reduce
+        point.y .= update_primal_eq(solver, init_z)
+        point.x .= update_dual_eq(solver, init_s)
+    else
+        point.x .= update_dual_eq(solver, init_s)
+        point.y .= update_primal_eq(solver, init_z)
+    end
+    point.z .= init_z
+    point.s .= init_s
+    return
+end
+
+function initialize_point(solver::Solver{T}) where {T <: Real}
+    point = solver.point
+    point.tau[] = one(T)
+    point.kap[] = one(T)
+
+    calc_mu(solver)
+    if isnan(solver.mu) || abs(one(T) - solver.mu) > sqrt(eps(T))
+        @warn("initial mu is $(solver.mu) but should be 1 (this could " *
+            "indicate a problem with cone barrier oracles)")
+    end
+
+    model = solver.model
+    Cones.load_point.(model.cones, point.primal_views)
+    Cones.load_dual_point.(model.cones, point.dual_views)
+    return
+end
+
+function setup_stepping(solver::Solver{T}) where {T <: Real}
+    model = solver.model
+    solver.x_conv_tol = inv(1 + norm(model.c, Inf))
+    solver.y_conv_tol = inv(1 + norm(model.b, Inf))
+    solver.z_conv_tol = inv(1 + norm(model.h, Inf))
+    solver.prev_is_slow = false
+    solver.prev2_is_slow = false
+    solver.worst_dir_res = 0
+    return
 end
 
 function setup_solver(solver::Solver{T}) where {T <: Real}
@@ -318,77 +531,6 @@ function setup_solver(solver::Solver{T}) where {T <: Real}
     solver.y_feas = NaN
     solver.z_feas = NaN
     solver.tau_feas = NaN
-
-    orig_model = solver.orig_model
-    if solver.use_dense_model
-        Models.densify!(orig_model)
-    end
-    solver.result = Point(orig_model)
-
-    # copy original model to solver.model, which may be modified
-    solver.model = Models.Model{T}(
-        orig_model.c, orig_model.A, orig_model.b, orig_model.G, orig_model.h,
-        orig_model.cones, obj_offset = orig_model.obj_offset)
-    return
-end
-
-function setup_point(solver::Solver{T}) where {T <: Real}
-    # preprocess and find initial point
-    (init_z, init_s) = initialize_cone_point(solver.orig_model)
-    solver.time_rescale = @elapsed solver.used_rescaling = rescale_data(solver)
-
-    if solver.reduce
-        # TODO don't find point / unnecessary stuff before reduce
-        solver.time_inity = @elapsed init_y = find_initial_y(solver, init_z, true)
-        solver.time_initx = @elapsed init_x = find_initial_x(solver, init_s)
-    else
-        solver.time_initx = @elapsed init_x = find_initial_x(solver, init_s)
-        solver.time_inity = @elapsed init_y = find_initial_y(solver, init_z, false)
-    end
-
-    if solver.status == SolveCalled
-        model = solver.model
-        point = solver.point = Point(model)
-        point.x .= init_x
-        point.y .= init_y
-        point.z .= init_z
-        point.s .= init_s
-        point.tau[] = one(T)
-        point.kap[] = one(T)
-
-        calc_mu(solver)
-        if isnan(solver.mu) || abs(one(T) - solver.mu) > sqrt(eps(T))
-            @warn("initial mu is $(solver.mu) but should be 1 (this could " *
-                "indicate a problem with cone barrier oracles)")
-        end
-        Cones.load_point.(model.cones, point.primal_views)
-        Cones.load_dual_point.(model.cones, point.dual_views)
-    end
-    return
-end
-
-function setup_stepping(solver::Solver{T}) where {T <: Real}
-    model = solver.model
-    # setup iteration helpers
-    solver.x_residual = zero(model.c)
-    solver.y_residual = zero(model.b)
-    solver.z_residual = zero(model.h)
-    solver.tau_residual = 0
-    point = solver.point
-    solver.compl_prev = dot(point.s, point.z) + point.tau[] * point.kap[] # TODO delete
-
-    solver.x_conv_tol = inv(1 + norm(model.c, Inf))
-    solver.y_conv_tol = inv(1 + norm(model.b, Inf))
-    solver.z_conv_tol = inv(1 + norm(model.h, Inf))
-    solver.prev_is_slow = false
-    solver.prev2_is_slow = false
-    solver.worst_dir_res = 0
-
-    load(solver.stepper, solver)
-    solver.time_loadsys = @elapsed load(solver.syssolver, solver)
-
-    solver.verbose && print_header(solver.stepper, solver)
-    flush(stdout)
     return
 end
 
@@ -398,7 +540,6 @@ function step_and_check(solver::Solver{T}) where {T <: Real}
 
     if solver.verbose
         print_iteration(stepper, solver)
-        flush(stdout)
     end
 
     check_converged(solver) && return true
@@ -573,8 +714,7 @@ function check_converged(
     end
 
     # TODO experiment with ill-posedness check
-    max_illp = max(solver.mu, tau / min(one(T), solver.point.kap[]))
-    if max_illp <= near_factor * solver.tol_illposed
+    if max(tau, solver.point.kap[]) <= near_factor * solver.tol_illposed
         solver.verbose && println("ill-posedness detected; terminating")
         solver.status = (check_near ? NearIllPosed : IllPosed)
         return true
@@ -603,6 +743,8 @@ function initialize_cone_point(model::Models.Model{T}) where {T <: Real}
     return (init_z, init_s)
 end
 
+get_model(solver::Solver) = solver.orig_model
+
 get_status(solver::Solver) = solver.status
 get_solve_time(solver::Solver) = solver.solve_time
 get_num_iters(solver::Solver) = solver.num_iters
@@ -618,12 +760,6 @@ get_y(solver::Solver) = copy(solver.result.y)
 get_tau(solver::Solver) = solver.point.tau[]
 get_kappa(solver::Solver) = solver.point.kap[]
 get_mu(solver::Solver) = solver.mu
-
-function load(solver::Solver{T}, model::Models.Model{T}) where {T <: Real}
-    solver.orig_model = model
-    solver.status = Loaded
-    return solver
-end
 
 include("process.jl")
 
@@ -651,6 +787,7 @@ function print_header(stepper::Stepper, solver::Solver)
 
     print_header_more(stepper, solver)
     println()
+    flush(stdout)
     return
 end
 print_header_more(stepper::Stepper, solver::Solver) = nothing
@@ -671,6 +808,7 @@ function print_iteration(stepper::Stepper, solver::Solver)
         print_iteration_more(stepper, solver)
     end
     println()
+    flush(stdout)
     return
 end
 print_iteration_more(stepper::Stepper, solver::Solver) = nothing
