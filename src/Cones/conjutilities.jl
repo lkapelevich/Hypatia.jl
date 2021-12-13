@@ -42,42 +42,67 @@ function omegawright(z::BigFloat)
 end
 
 # using Combinatorics
-# constants should be cached
+# using DelimitedFiles
 # # Eulerian numbers of the second kind
 # # complicated explicit formula in "Explicit formulas for the Eulerian
 # # numbers of the second kind"
+# # see also http://luschny.de/math/oeis/A340556.html
 # function eulerian2(n::Int, m::Int)
-#     iszero(n) && return (iszero(m) ? 1 : 0)
-#     return (2n - m - 1) * eulerian2(n - 1, m - 1) + (m + 1) * eulerian2(n - 1, m)
+#     if n < 0
+#         return 0
+#     elseif iszero(m)
+#         return m^n
+#     else
+#         return (2n - m) * eulerian2(n - 1, m - 1) + m * eulerian2(n - 1, m)
+#     end
 # end
+# # function one_consts()
+# #     num_terms = 20
+# #     one_consts = zeros(BigFloat, num_terms)
+# #     for i in 1:num_terms
+# #         one_consts[i] = sum(eulerian2(i - 1, k) * (-1)^k for k in 0:(i - 1)) / big(2)^(2i - 1) / big(factorial(i))
+# #     end
+# #     one_consts = vcat(0.5, -one_consts[2:end]) # FIXME
+# #     writedlm("oneconsts.txt", one_consts)
+# # end
+#
+# one_consts = readdlm("one_consts.txt", BigFloat)
+# inf_consts = readdlm("inf_consts.txt", BigFloat)
+# neginf_consts = readdlm("neginf_consts.txt", BigFloat)
 #
 # function omegawright(z::T) where {T <: Real}
 #     # heuristic
 #     num_terms = div(precision(float(z)), 53) * 5
+#     FT = float(T)
 #     if z < -2
 #         t = exp(z)
 #         # w = sum((-T(i))^(i - 1) / T(factorial(i)) * t^i for i in 1:num_terms)
-#         w = @Base.Math.horner(t, 0, [(-T(i))^(i - 1) / T(factorial(i)) for i in 1:num_terms]...)
+#         @views w = @Base.Math.horner(t, zero(FT), FT.(neginf_consts[1:num_terms])...) # TODO figure out proper way to read constants in right precision
 #     elseif z < 1 + π
+#         # imprecise in BF
 #         z1 = z - 1
-#         w = 1 + sum(
-#             sum(eulerian2(i - 1, k) * (-1)^k for k in 0:(i - 1)) /
-#             T(2)^(2i - 1) / T(factorial(i)) * z1^i
-#             for i in 1:num_terms)
+#         @views w = @Base.Math.horner(z1, one(FT), FT.(one_consts[1:num_terms])...)
+#         # w = 1 + sum(
+#         #     sum(eulerian2(i - 1, k) * (-1)^k for k in 0:(i - 1)) /
+#         #     T(2)^(2i - 1) / T(factorial(i)) * z1^i
+#         #     for i in 1:num_terms)
 #     else
+#         # imprecise in BF
 #         lz = log(z)
 #         function consts_infty(i::Int, j::Int)
 #             (i == j == 0) && return 0
 #             return (-1)^i / T(factorial(j)) * Combinatorics.stirlings1(i + j, i + 1)
 #         end
-#         w = z - lz + @Base.Math.horner((lz / z), [@Base.Math.horner(inv(z),
-#             [consts_infty(i, j) for i in 0:(num_terms - 2)]...) for j in 0:(num_terms - 2)]...)
-#         # w = z - lz + sum(consts_infty(i, j) * lz^j / z^(i + j) for
-#         #     i in 0:(num_terms - 2) for j in 0:(num_terms - 2))
+#         # w = z - lz + @Base.Math.horner((lz / z), [@Base.Math.horner(inv(z),
+#         #     [inf_consts[i, j] for i in 1:(num_terms - 1)]...) for j in 1:(num_terms - 1)]...)
+#         # w = z - lz + @Base.Math.horner((lz / z), [@Base.Math.horner(inv(z),
+#         #     [consts_infty(i, j) for i in 0:(num_terms - 2)]...) for j in 0:(num_terms - 2)]...)
+#         w = z - lz + sum(consts_infty(i, j) * lz^j / z^(i + j) for
+#             i in 0:(num_terms - 2) for j in 0:(num_terms - 2))
 #     end
 #     r = z - w - log(w)
 #     for k in 1:2
-#         t = (1 + w) * (1 + w + 2 / 3 * r)
+#         t = (1 + w) * (1 + w + 2 / T(3) * r)
 #         w = w * (1 + r / (1 + w) * (t - r / 2) / (t - r))
 #         r = (2 * w * (w - 4) - 1) / 72 / (1 + w)^6 * r^4
 #     end
