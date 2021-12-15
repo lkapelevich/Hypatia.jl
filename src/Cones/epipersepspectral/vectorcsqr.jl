@@ -341,3 +341,51 @@ function dder3(
 
     return dder3
 end
+
+function dder3(
+    cone::EpiPerSepSpectral{VectorCSqr{T}},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where T
+    cone.dder3_aux_updated || update_dder3_aux(cone)
+    v = cone.point[2]
+    w = cone.w_view
+    dder3 = cone.dder3
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+    cache = cone.cache
+    ζi = cache.ζi
+    σ = cache.σ
+    ∇h = cache.∇h
+    ∇2h = cache.∇2h
+    wi = cache.wi
+    ξ1 = cache.w1
+    ξ2 = copy(ξ1)
+    τ = cache.w2
+
+    p = pdir[1]
+    q = pdir[2]
+    @views r = pdir[3:end]
+    x = d1[1]
+    y = d1[2]
+    @views z = d1[3:end]
+
+    viq = q / v
+    viy = y / v
+    @. ξ1 = r - viq * w
+    @. ξ2 = z - viy * w
+    ζiχ1 = ζi * (p - σ * q - dot(∇h, r))
+    ζiχ2 = ζi * (x - σ * y - dot(∇h, z))
+    ξbξ = cache.ζivi * dot(ξ1, Diagonal(∇2h), ξ2) / 2
+    c1 = ζi * (ζiχ1 * ζiχ2 + ξbξ)
+
+    c2 = ζi / 2
+    ξ1 ./= v
+    ξ2 ./= v
+    @. τ = c2 * (∇2h * (ξ1 * (ζiχ2 + viy) + ξ2 * (ζiχ1 + viq)) - ξ1 * cache.∇3h * ξ2)
+
+    dder3[1] = -c1
+    dder3[2] = c1 * σ + dot(cache.viw, τ) - (ξbξ + viq * viy) / v
+    @. dder3[3:end] = c1 * ∇h - τ - wi * r * wi * z * wi
+
+    return dder3
+end

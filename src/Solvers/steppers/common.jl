@@ -38,6 +38,7 @@ function update_rhs_predadj(
         if Cones.use_scal(cone_k)
             dual_dir_k = dir.dual_views[k]
             dder3_k = Cones.dder3(cone_k, prim_dir_k, dual_dir_k)
+            # dder3_k is negative eta
             @. rhs.s_views[k] = dder3_k
         else
             H_prim_dir_k = cone_k.vec1

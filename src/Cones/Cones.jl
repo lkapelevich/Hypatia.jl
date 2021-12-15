@@ -262,12 +262,13 @@ end
 
 # naive fallback
 function update_dual_grad(cone::Cone{T}) where {T <: Real}
+    quad_bound = 0.35
     s = cone.point
     z = cone.dual_point
     g = grad(cone)
     r = z + g
     Hir = inv_hess_prod!(copy(r), r, cone)
-    n = sqrt(dot(r, Hir))
+    n = n_prev = sqrt(dot(r, Hir))
     # curr = cone.dual_grad
     # curr .= s
     curr = copy(s)
@@ -276,7 +277,7 @@ function update_dual_grad(cone::Cone{T}) where {T <: Real}
     max_iter = 40
     iter = 1
     while n > 1000eps(T)
-        α = (n > 0.25 ? inv(1 + n) : 1)
+        α = (n > quad_bound ? inv(1 + n) : 1)
         curr -= Hir * α
         load_point(cone, curr)
         reset_data(cone)
@@ -287,6 +288,10 @@ function update_dual_grad(cone::Cone{T}) where {T <: Real}
         n = sqrt(dot(r, Hir))
         # @show n
         iter += 1
+        if (n_prev < quad_bound) && (n > 1000(n_prev / (1 - n_prev))^2)
+            break
+        end
+        n_prev = n
         (iter > max_iter) && break
     end
     # curr *= -1
@@ -394,7 +399,9 @@ function update_scal_hess_fact(cone::Cone{T}) where {T <: Real}
 
         tmu = dot(ts, tz) / nu
         tol = sqrt(eps(T))
-        @assert cone_mu * tmu >= 1 - tol
+        if cone_mu * tmu < 1 - tol
+            @show "bad", cone_mu * tmu
+        end
         ds = s - cone_mu * ts
         dz = z - cone_mu * tz
         Hts = hess_prod!(copy(ts), ts, cone)
@@ -519,7 +526,9 @@ function update_scal_hess(cone::Cone{T}) where {T <: Real}
     mu = dot(s, z) / nu
     tmu = dot(ts, tz) / nu
     tol = sqrt(eps(T))
-    @assert mu * tmu >= 1 - tol
+    if mu * tmu < 1 - tol
+        @show "bad", mu * tmu
+    end
 
     ds = s - mu * ts
     dz = z - mu * tz

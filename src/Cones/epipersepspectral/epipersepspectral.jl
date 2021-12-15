@@ -32,22 +32,31 @@ mutable struct EpiPerSepSpectral{Q <: ConeOfSquares, T <: Real} <: Cone{T}
     point::Vector{T}
     dual_point::Vector{T}
     grad::Vector{T}
+    dual_grad::Vector{T}
     dder3::Vector{T}
     vec1::Vector{T}
     vec2::Vector{T}
     feas_updated::Bool
     grad_updated::Bool
+    dual_grad_updated::Bool
     hess_updated::Bool
     inv_hess_updated::Bool
     hess_aux_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
     inv_hess_aux_updated::Bool
     dder3_aux_updated::Bool
     hess_fact_updated::Bool
     is_feas::Bool
+    scal_hess_fact_updated::Bool
     hess::Symmetric{T, Matrix{T}}
     inv_hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
     hess_fact_mat::Symmetric{T, Matrix{T}}
+    scal_hess_fact_mat::Symmetric{T, Matrix{T}}
     hess_fact::Factorization{T}
+    scal_hess_fact::Factorization{T}
 
     w_view::SubArray{T, 1}
     cache::CSqrCache{T}
@@ -67,10 +76,13 @@ mutable struct EpiPerSepSpectral{Q <: ConeOfSquares, T <: Real} <: Cone{T}
     end
 end
 
+use_scal(::EpiPerSepSpectral) = false
+
 reset_data(cone::EpiPerSepSpectral) = (cone.feas_updated = cone.grad_updated =
     cone.hess_updated = cone.inv_hess_updated = cone.hess_aux_updated =
     cone.inv_hess_aux_updated = cone.dder3_aux_updated =
-    cone.hess_fact_updated = false)
+    cone.hess_fact_updated = cone.dual_grad_updated = cone.scal_hess_updated =
+    cone.inv_scal_hess_updated = cone.scal_hess_fact_updated = false)
 
 function setup_extra_data!(cone::EpiPerSepSpectral)
     @views cone.w_view = cone.point[3:end]
@@ -79,6 +91,8 @@ function setup_extra_data!(cone::EpiPerSepSpectral)
 end
 
 get_nu(cone::EpiPerSepSpectral) = 2 + cone.d
+
+use_sqrt_scal_hess_oracles(::Int, cone::EpiPerSepSpectral) = false
 
 include("vectorcsqr.jl")
 include("matrixcsqr.jl")
