@@ -596,7 +596,6 @@ function scal_hess_prod!(
         (abs(dot(ts, Hts) - nu * tmu^2) > tol)
         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
         v2 = Hts - tmu * tz
-        M1 = dz * v1'
         tsHts = dot(ts, Hts)
         @inbounds for j in 1:size(arr, 2)
             prod_j = view(prod, :, j)
@@ -606,7 +605,7 @@ function scal_hess_prod!(
             d3 = dot(v2, arr_j)
             @. prod_j += d1 / (2 * dot_sz) * dz
             @. prod_j += d2 / (2 * dot_sz) * v1
-            @. prod_j -= d3 * cone_mu / (tsHts - nu * tmu^2) .* v2
+            @. prod_j -= d3 * cone_mu / (tsHts - nu * tmu^2) * v2
         end
     end
 

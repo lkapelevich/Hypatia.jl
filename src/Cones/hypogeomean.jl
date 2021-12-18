@@ -70,7 +70,7 @@ end
 
 get_nu(cone::HypoGeoMean) = cone.dim
 
-use_sqrt_scal_hess_oracles(::Int, cone::HypoGeoMean{T}) where {T <: Real} = false
+use_sqrt_scal_hess_oracles(::Int, cone::HypoGeoMean) = false
 
 function set_initial_point!(
     arr::AbstractVector{T},
@@ -128,12 +128,12 @@ end
 function update_dual_grad(cone::HypoGeoMean)
     u = cone.dual_point[1]
     @views w = cone.dual_point[2:end]
-    d = length(w)
     dg = cone.dual_grad
     dual_ϕ = cone.dual_ϕ
+    dual_ζ = dual_ϕ + u * cone.di
 
-    @. @views dg[2:end] = -1 / w / (1 + u / d / dual_ϕ)
-    dg[1] = -inv(u) - d / (d * dual_ϕ + u)
+    @. @views dg[2:end] = -dual_ϕ / dual_ζ / w
+    dg[1] = -inv(u) - inv(dual_ζ)
 
     cone.dual_grad_updated = true
     return dg
