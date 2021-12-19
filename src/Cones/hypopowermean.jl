@@ -322,7 +322,7 @@ function dder3(
     @views z = d1[2:end]
     u = cone.point[1]
     @views w = cone.point[2:end]
-    ζ = -cone.ζ
+    ζ = cone.ζ
     ϕ = cone.ϕ
     α = cone.α
 
@@ -330,20 +330,21 @@ function dder3(
     zwi = z ./ w
     tr_rwi = dot(rwi, α)
     tr_zwi = dot(zwi, α)
+    tr_rzwi = tr_rwi * tr_zwi
 
     χ_1 = -p + ϕ * tr_rwi
     χ_2 = -x + ϕ * tr_zwi
 
-    dot_rzwi = sum(rwi .* zwi .* α)
-    c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * ϕ * (tr_rwi * tr_zwi - dot_rzwi)
+    rzwi = rwi .* zwi
+    dot_rzwi = dot(rzwi, α)
+    c1 = (ϕ * (tr_rzwi - dot_rzwi) - 2 * χ_1 * χ_2 / ζ) / ζ^2
 
     dder3[1] = -c1
-    rz_ζ_χ_wi = (r * χ_2 / ζ + z * χ_1 / ζ) ./ w
-    rzwi = rwi .* zwi
+    rz_ζ_χ_wi = -(r * χ_2 + z * χ_1) ./ w / ζ
     τ = (dot(rz_ζ_χ_wi, α) .- rz_ζ_χ_wi .+
-        tr_rwi * tr_zwi .- tr_rwi * zwi .- tr_zwi * rwi .- dot_rzwi .+
-            2 * rzwi) * ϕ .* α ./ w / ζ
-    dder3[2:end] .= c1 * ϕ * α ./ w + τ - 2 * rzwi ./ w
+        tr_rzwi .- tr_rwi * zwi .- tr_zwi * rwi .- dot_rzwi .+
+            2 * rzwi) / ζ
+    dder3[2:end] .= (ϕ * α .* (c1 .- τ) - 2 * rzwi) ./ w
     dder3 ./= 2
 
     return dder3

@@ -337,26 +337,28 @@ function dder3(
     u = cone.point[1]
     v = cone.point[2]
     @views w = cone.point[3:end]
-    ζ = -cone.ζ
+    ζ = cone.ζ
     σ = cone.ϕ - d
 
     rwi = r ./ w
     zwi = z ./ w
+    qvi = q / v
+    yvi = y / v
 
     χ_1 = -p + q * σ + v * sum(rwi)
     χ_2 = -x + y * σ + v * sum(zwi)
-    ζ_χ_q = χ_1 / ζ - q / v
-    ζ_χ_y = χ_2 / ζ - y / v
-    wiv_ξ_1 = -q / v .+ r ./ w
-    wiv_ξ_2 = -y / v .+ z ./ w
+    ζ_χ_q = -χ_1 / ζ - qvi
+    ζ_χ_y = -χ_2 / ζ - yvi
+    wiv_ξ_1 = -qvi .+ rwi
+    wiv_ξ_2 = -yvi .+ zwi
     wiv_ξ_dot = dot(wiv_ξ_1, wiv_ξ_2)
 
-    c1 = (2 * χ_1 * χ_2 / ζ - v * wiv_ξ_dot) / ζ^2
+    c1 = (-2 * χ_1 * χ_2 / ζ - v * wiv_ξ_dot) / ζ^2
 
     dder3[1] = -c1
     τwvi = (-wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + 2 * wiv_ξ_1 .* wiv_ξ_2) / ζ
-    dder3[2] = c1 * σ - sum(τwvi) - 2 * q * y / v^3 + wiv_ξ_dot / ζ
-    dder3[3:end] .= c1 * v ./ w + τwvi * v ./ w - 2 * r .* z ./ w.^3
+    dder3[2] = c1 * σ + sum(τwvi) - 2 * qvi * yvi / v - wiv_ξ_dot / ζ
+    dder3[3:end] .= ((c1 .- τwvi) * v - 2 * rwi .* zwi) ./ w
     dder3 ./= 2
 
     # barrier = bar(cone)
