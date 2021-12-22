@@ -4,29 +4,30 @@
 # Series approximations can be found in the book chapter ``The Wright ω Function''
 # by Corless, R. M. and Jeffrey, D. J.
 
-function omegawright(z::T) where T
+function omegawright(z::T) where {T <: Real}
     z = float(z)
     if z < -2
-        # TODO find out what others do for large negative z (unlikely in our case
-        # because z is bounded by 1/d-log(d))
         t = exp(z)
         w = t * (1 + t * (-1 + t * (T(3) / 2 + t * (-T(8) / 3 + T(125) / 24 * t))))
-    elseif z < 1 + π
+    elseif z < T(1) + π
         z1 = z - 1
         w = 1 + z1 / 2 * (1 + z1 / 8 * (1 + z1 / 12 * (-1 + z1 / 16 *
             (-1 + z1 * T(13) / 20))))
     else
         lz = log(z)
-        w = z + lz * (-1 + (1 + (lz / 2 - 1 + (lz * (lz / 3 - T(3) / 2) + 1) / z) / z) / z)
+        w = z + lz * (-1 + (1 + (lz / 2 - 1 + (lz * (lz / 3 - T(3) / 2) + 1) /
+            z) / z) / z)
     end
-    r = z - w - log(w)
-    for k in 1:2
-        t = (1 + w) * (1 + w + 2 / 3 * r)
-        w = w * (1 + r / (1 + w) * (t - r / 2) / (t - r))
-        r = (2 * w * (w - 4) - 1) / 72 / (1 + w)^6 * r^4
+    for _ in 1:5
+        r = z - w - log(w)
+        w1 = w + 1
+        t = w1 * (w1 + T(2) / 3 * r)
+        w *= 1 + r / w1 * (t - r / 2) / (t - r)
+        fscn = abs(r^4 * (2 * w * (w - 4) - 1))
+        if t < eps(float(T)) * 72 * w1^6
+            break
+        end
     end
-    # @show r
-    # @show z - w - log(w)
     return w::float(T)
 end
 
@@ -36,10 +37,10 @@ end
 # 5 terms works well for Float64
 # num_terms = div(precision(float(T)), 53) * 5
 # w = sum((-i)^(i - 1) / factorial(i) * t^i for i in 1:num_terms)
-using LambertW
-function omegawright(z::BigFloat)
-    return lambertw(exp(z))
-end
+# using LambertW
+# function omegawright(z::BigFloat)
+#     return lambertw(exp(z))
+# end
 
 # using Combinatorics
 # using DelimitedFiles
@@ -72,7 +73,8 @@ end
 #
 # function omegawright(z::T) where {T <: Real}
 #     # heuristic
-#     num_terms = div(precision(float(z)), 53) * 5
+#     # num_terms = div(precision(float(z)), 53) * 5
+#     num_terms = 5
 #     FT = float(T)
 #     if z < -2
 #         t = exp(z)
@@ -89,22 +91,35 @@ end
 #     else
 #         # imprecise in BF
 #         lz = log(z)
-#         function consts_infty(i::Int, j::Int)
-#             (i == j == 0) && return 0
-#             return (-1)^i / T(factorial(j)) * Combinatorics.stirlings1(i + j, i + 1)
-#         end
-#         # w = z - lz + @Base.Math.horner((lz / z), [@Base.Math.horner(inv(z),
-#         #     [inf_consts[i, j] for i in 1:(num_terms - 1)]...) for j in 1:(num_terms - 1)]...)
+#         # function consts_infty(i::Int, j::Int)
+#         #     (i == j == 0) && return 0
+#         #     return (-1)^i / T(factorial(j)) * Combinatorics.stirlings1(i + j, i + 1)
+#         # end
+#         w = z - lz + @Base.Math.horner((lz / z), [@Base.Math.horner(inv(z),
+#             [FT.(inf_consts[i, j]) for i in 1:(num_terms - 1)]...) for j in 1:(num_terms - 1)]...)
 #         # w = z - lz + @Base.Math.horner((lz / z), [@Base.Math.horner(inv(z),
 #         #     [consts_infty(i, j) for i in 0:(num_terms - 2)]...) for j in 0:(num_terms - 2)]...)
-#         w = z - lz + sum(consts_infty(i, j) * lz^j / z^(i + j) for
-#             i in 0:(num_terms - 2) for j in 0:(num_terms - 2))
+#         # w = z - lz + sum(consts_infty(i, j) * lz^j / z^(i + j) for
+#         #     i in 0:(num_terms - 2) for j in 0:(num_terms - 2))
 #     end
-#     r = z - w - log(w)
-#     for k in 1:2
-#         t = (1 + w) * (1 + w + 2 / T(3) * r)
-#         w = w * (1 + r / (1 + w) * (t - r / 2) / (t - r))
-#         r = (2 * w * (w - 4) - 1) / 72 / (1 + w)^6 * r^4
+#     # r = z - w - log(w)
+#     # for k in 1:2
+#     #     t = (1 + w) * (1 + w + 2 / T(3) * r)
+#     #     w = w * (1 + r / (1 + w) * (t - r / 2) / (t - r))
+#     #     r = (2 * w * (w - 4) - 1) / 72 / (1 + w)^6 * r^4
+#     # end
+#     iter = 0
+#     for _ in 1:5
+#         iter += 1
+#         r = z - w - log(w)
+#         w1 = w + 1
+#         t = w1 * (w1 + T(2) / 3 * r)
+#         w *= 1 + r / w1 * (t - r / 2) / (t - r)
+#         fscn = abs(r^4 * (2 * w * (w - 4) - 1))
+#         if t < eps(FT) * 72 * w1^6
+#             @show iter
+#             break
+#         end
 #     end
 #     return w
 # end
