@@ -312,20 +312,21 @@ function dder3(
     zwi = z ./ w
     tr_rwi = sum(rwi) * di
     tr_zwi = sum(zwi) * di
+    tr_rzwi = tr_rwi * tr_zwi
 
     χ_1 = -p + ϕ * tr_rwi
     χ_2 = -x + ϕ * tr_zwi
 
-    dot_rzwi = dot(rwi, zwi)
-    c1 = 2 * ζ^(-3) * χ_1 * χ_2 + ζ^(-2) * ϕ * (tr_rwi * tr_zwi - di * dot_rzwi)
-
-    dder3[1] = -c1
-    rz_ζ_χ_wi = (r * χ_2 / ζ + z * χ_1 / ζ) ./ w
     rzwi = rwi .* zwi
-    τ = (sum(rz_ζ_χ_wi) * di .- rz_ζ_χ_wi .+
-        tr_rwi * tr_zwi .- tr_rwi * zwi .- tr_zwi * rwi .- di * dot_rzwi .+
-            2 * rzwi) * ϕ * di ./ w / ζ
-    dder3[2:end] .= c1 * ϕ * di ./ w + τ - 2 * rzwi ./ w
+    dot_rzwi = sum(rzwi)
+    c1 = (2 * χ_1 * χ_2 / ζ + ϕ * (tr_rzwi - di * dot_rzwi)) / ζ
+
+    dder3[1] = -c1 / ζ
+    rz_ζ_χ_wi = (r * χ_2 + z * χ_1) ./ w / ζ
+    τ = sum(rz_ζ_χ_wi) * di .- rz_ζ_χ_wi .+
+        tr_rzwi .- tr_rwi * zwi .- tr_zwi * rwi .- di * dot_rzwi .+
+            2 * rzwi
+    dder3[2:end] .= ((c1 .+ τ) * ϕ * di / ζ - 2 * rzwi) ./ w
     dder3 ./= 2
 
     return dder3
