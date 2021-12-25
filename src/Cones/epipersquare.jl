@@ -360,6 +360,28 @@ function update_scal_hess(cone::EpiPerSquare)
     return cone.scal_hess
 end
 
+function update_inv_scal_hess(cone::EpiPerSquare)
+    @assert cone.grad_updated
+    cone.nt_updated || update_nt(cone)
+    isdefined(cone, :inv_scal_hess) || alloc_inv_scal_hess!(cone)
+    H = cone.inv_scal_hess.data
+    nt_point = cone.nt_point
+
+    @views nt_point[3:end] *= -1
+    (nt_point[1], nt_point[2]) = (nt_point[2], nt_point[1])
+    mul!(H, nt_point, nt_point', 2, false)
+    @views nt_point[3:end] *= -1
+    (nt_point[1], nt_point[2]) = (nt_point[2], nt_point[1])
+    @inbounds for j in 3:cone.dim
+        H[j, j] += 1
+    end
+    H[1, 2] -= 1
+    H .*= cone.rt_dist_ratio
+
+    cone.inv_scal_hess_updated = true
+    return cone.inv_scal_hess
+end
+
 function dder3(cone::EpiPerSquare, dir::AbstractVector)
     @assert cone.grad_updated
     dim = cone.dim

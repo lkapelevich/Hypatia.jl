@@ -191,6 +191,23 @@ function update_inv_hess(cone::EpiNormEucl)
     return cone.inv_hess
 end
 
+function update_inv_scal_hess(cone::EpiNormEucl)
+    @assert cone.grad_updated
+    @assert cone.is_feas
+    isdefined(cone, :inv_scal_hess) || alloc_inv_scal_hess!(cone)
+    cone.nt_updated || update_nt(cone)
+
+    mul!(cone.inv_scal_hess.data, cone.nt_point, cone.nt_point', 2, false)
+    @inbounds cone.inv_scal_hess.data[1, 1] -= 1
+    @inbounds for j in 2:cone.dim
+        cone.inv_scal_hess.data[j, j] += 1
+    end
+    cone.inv_scal_hess.data .*= cone.rt_dist_ratio
+
+    cone.inv_scal_hess_updated = true
+    return cone.inv_scal_hess
+end
+
 function hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,

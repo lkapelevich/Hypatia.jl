@@ -559,6 +559,64 @@ function update_inv_scal_hess(cone::Cone{T}) where {T <: Real}
     return cone.inv_scal_hess
 end
 
+# function update_inv_scal_hess(cone::Cone{T}) where {T <: Real}
+#     if !isdefined(cone, :inv_scal_hess)
+#         dim = dimension(cone)
+#         cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
+#     end
+#     update_scal_hess_fact(cone)
+#     inv_fact!(cone.inv_scal_hess.data, cone.scal_hess_fact)
+#     cone.inv_scal_hess_updated = true
+#     return cone.inv_scal_hess
+# end
+
+# function update_inv_scal_hess(cone::Cone{T}) where {T <: Real}
+#     @assert use_scal(cone)
+#     if !isdefined(cone, :inv_scal_hess)
+#         dim = dimension(cone)
+#         cone.inv_scal_hess = Symmetric(zeros(T, dim, dim), :U)
+#     end
+#
+#     s = cone.point
+#     z = cone.dual_point
+#     ts = -dual_grad(cone)
+#     tz = -grad(cone)
+#
+#     nu = get_nu(cone)
+#     cone_mu = dot(s, z) / nu
+#     tmu = dot(ts, tz) / nu
+#
+#     ds = s - cone_mu * ts
+#     dz = z - cone_mu * tz
+#     Hts = hess_prod!(copy(ts), ts, cone)
+#     tol = sqrt(eps(T))
+#     if (norm(ds) < tol) || (norm(dz) < tol) || (cone_mu * tmu - 1 < tol) ||
+#         (abs(dot(ts, Hts) - nu * tmu^2) < tol)
+#         # @show "~~ skipping updates ~~"
+#         cone.inv_scal_hess.data .= inv_hess(cone) ./ cone_mu
+#     else
+#         v1 = z + cone_mu * tz + dz / (cone_mu * tmu - 1)
+#         # TODO dot(ts, Hts) - nu * tmu^2 should be negative
+#         v2 = sqrt(cone_mu) * (Hts - tmu * tz) / sqrt(abs(dot(ts, Hts) - nu * tmu^2))
+#
+#         c1 = 1 / sqrt(2 * cone_mu * nu)
+#         U = hcat(c1 * dz, c1 * v1, -v2)
+#         V = hcat(c1 * v1, c1 * dz, v2)'
+#
+#         t2 = V * inv_hess(cone) / cone_mu
+#         t3 = inv_hess_prod!(copy(U), U, cone) / cone_mu
+#         t4 = I + V * t3
+#         t5 = t4 \ t2
+#         t6 = U * t5
+#         t7 = inv_hess_prod!(copy(t6), t6, cone) / cone_mu
+#         cone.inv_scal_hess.data .= inv_hess(cone) ./ cone_mu - t7
+#     end
+#     @show cone.inv_scal_hess ./ (inv(cone.scal_hess))
+#
+#     cone.inv_scal_hess_updated = true
+#     return cone.inv_scal_hess
+# end
+
 function scal_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
