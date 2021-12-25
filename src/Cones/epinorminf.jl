@@ -573,6 +573,7 @@ end
 
 # TODO remove this in favor of new hess_nz_count etc functions
 # that directly use uu, uw, ww etc
+# TODO wrong for alg with use_scal
 hess_nz_count(cone::EpiNormInf{<:Real, <:Real}) =
     3 * cone.dim - 2
 

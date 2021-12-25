@@ -88,7 +88,7 @@ end
         (Solvers.NaiveElimDenseSystemSolver, diff_reals),
         # (Solvers.NaiveElimSparseSystemSolver, [Float64,]),
         (Solvers.SymIndefDenseSystemSolver, all_reals),
-        # (Solvers.SymIndefSparseSystemSolver, [Float64,]),
+        (Solvers.SymIndefSparseSystemSolver, [Float64,]),
         (Solvers.QRCholDenseSystemSolver, all_reals),
         ]
     for inst_name in inst_cones_many, (syssolver, real_types) in syssolvers,

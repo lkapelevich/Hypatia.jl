@@ -168,8 +168,8 @@ end
 
 function update_lhs(syssolver::SymIndefSparseSystemSolver, solver::Solver)
     for (k, cone_k) in enumerate(solver.model.cones)
-        H_k = (Cones.use_dual_barrier(cone_k) ? Cones.hess(cone_k) :
-            Cones.inv_hess(cone_k))
+        H_k = (Cones.use_dual_barrier(cone_k) ? Cones.scal_hess(cone_k) :
+            Cones.inv_scal_hess(cone_k))
         for j in 1:Cones.dimension(cone_k)
             nz_rows = (Cones.use_dual_barrier(cone_k) ?
                 Cones.hess_nz_idxs_col_tril(cone_k, j) :
