@@ -13,12 +13,12 @@ insts["fast"] = [
     ((250, true),),
     ]
 insts["various"] = [
-    ((1000, false),),
+    # ((1000, false),),
     ((500, true),),
-    ((4000, false),),
+    # ((4000, false),),
     ((1000, true),),
-    ((8000, false),),
+    # ((8000, false),),
     ((2000, true),),
-    ((10000, false),),
+    # ((10000, false),),
     ]
 return (DiscreteMaxLikelihood, insts)
