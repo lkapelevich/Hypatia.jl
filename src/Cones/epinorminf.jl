@@ -172,8 +172,8 @@ function epinorminf_dg(u::T, w::AbstractVector{T}, d::Int, dual_zeta::T) where T
     # z * w / 2
     zw2 = copy(w)
     for i in eachindex(w)
-        if abs(w[i]) .< 100eps(T)
-            zw2[i] = dgu * w[i] * dgu / 2
+        if abs(w[i]) .< eps(T)
+            zw2[i] = 0
         else
             zw2[i] = sqrt(1 + abs2(w[i] * dgu)) / w[i] - 1 / w[i]
         end
