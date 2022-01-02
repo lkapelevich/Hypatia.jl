@@ -1,0 +1,367 @@
+"""
+$(TYPEDEF)
+
+Epigraph of real or complex infinity norm cone of dimension `dim`.
+
+    $(FUNCTIONNAME){T}(dim::Int, use_dual::Bool = false)
+"""
+mutable struct EpiNormOne{T <: Real} <: Cone{T}
+    use_dual_barrier::Bool
+    dim::Int
+    d::Int
+
+    point::Vector{T}
+    dual_point::Vector{T}
+    grad::Vector{T}
+    dual_grad::Vector{T}
+    dder3::Vector{T}
+    vec1::Vector{T}
+    vec2::Vector{T}
+    feas_updated::Bool
+    grad_updated::Bool
+    dual_grad_updated::Bool
+    hess_updated::Bool
+    inv_hess_updated::Bool
+    scal_hess_updated::Bool
+    inv_scal_hess_updated::Bool
+    hess_aux_updated::Bool
+    hess_fact_updated::Bool
+    scal_hess_fact_updated::Bool
+    is_feas::Bool
+    hess::Symmetric{T, Matrix{T}}
+    scal_hess::Symmetric{T, Matrix{T}}
+    inv_hess::Symmetric{T, SparseMatrixCSC{T, Int}}
+    inv_scal_hess::Symmetric{T, Matrix{T}}
+    # for current default inv scal hess oracles
+    hess_fact_mat::Symmetric{T, Matrix{T}}
+    scal_hess_fact_mat::Symmetric{T, Matrix{T}}
+    hess_fact::Factorization{T}
+    scal_hess_fact::Factorization{T}
+
+    w::Vector{T}
+    mu::Vector{T}
+    grad_mu::Vector{T}
+    zeta::T
+    dual_zeta::Vector{T}
+    grad_zeta::Vector{T}
+    cu::T
+    Zu::T
+    wumzi::Vector{T}
+    zti::Vector{T}
+
+    s1::Vector{T}
+    s2::Vector{T}
+    w1::Vector{T}
+    w2::Vector{T}
+
+    function EpiNormOne{T}(
+        dim::Int;
+        use_dual::Bool = false,
+        ) where {T <: Real}
+        @assert dim >= 2
+        cone = new{T}()
+        cone.use_dual_barrier = use_dual
+        cone.dim = dim
+        cone.d = dim - 1
+        return cone
+    end
+end
+
+use_scal(::EpiNormOne) = true
+
+reset_data(cone::EpiNormOne) = (cone.feas_updated = cone.grad_updated =
+    cone.dual_grad_updated = cone.hess_updated = cone.inv_hess_updated =
+    cone.hess_aux_updated = cone.scal_hess_updated =
+    cone.inv_scal_hess_updated = cone.scal_hess_fact_updated =
+    cone.hess_fact_updated = false)
+
+use_sqrt_hess_oracles(::Int, cone::EpiNormOne) = false
+
+use_sqrt_scal_hess_oracles(::Int, cone::EpiNormOne) = false
+
+function setup_extra_data!(
+    cone::EpiNormOne{T},
+    ) where {T <: Real}
+    d = cone.d
+    cone.w = zeros(T, d)
+    cone.mu = zeros(T, d)
+    cone.grad_mu = zeros(T, d)
+    cone.dual_zeta = zeros(T, d)
+    cone.grad_zeta = zeros(T, d)
+    cone.wumzi = zeros(T, d)
+    cone.s1 = zeros(T, d)
+    cone.s2 = zeros(T, d)
+    cone.w1 = zeros(T, d)
+    cone.zti = zeros(T, d)
+    return cone
+end
+
+get_nu(cone::EpiNormOne) = 1 + cone.d
+
+function set_initial_point!(
+    arr::AbstractVector{T},
+    cone::EpiNormOne{T},
+    ) where {T <: Real}
+    arr .= 0
+    arr[1] = sqrt(T(get_nu(cone)))
+    return arr
+end
+
+function update_feas(cone::EpiNormOne{T}) where T
+    @assert !cone.feas_updated
+    u = cone.point[1]
+
+    if u > eps(T)
+        @views vec_copyto!(cone.w, cone.point[2:end])
+        @views norm1 = sum(abs, cone.w)
+        cone.zeta = u - norm1
+        cone.is_feas = (cone.zeta > eps(T))
+    else
+        cone.is_feas = false
+    end
+
+    cone.feas_updated = true
+    return cone.is_feas
+end
+
+function is_dual_feas(cone::EpiNormOne{T}) where T
+    dp = cone.dual_point
+    u = dp[1]
+    if u > eps(T)
+        @views return (u - maximum(abs, dp[2:end]) > eps(T))
+    end
+    return false
+end
+
+function update_grad(
+    cone::EpiNormOne{T},
+    ) where {T <: Real}
+    u = cone.point[1]
+    w = cone.w
+
+    (gu, zw2) = epinorminf_dg(u, w, cone.d, cone.zeta)
+    cone.grad[1] = gu
+    @views vec_copyto!(cone.grad[2:end], zw2)
+
+    # TODO moves somewhere else
+    g = cone.grad
+    @views @. cone.grad_mu = g[2:end] / gu
+    @views @. cone.grad_zeta = -T(0.5) * (gu - remul(cone.grad_mu, g[2:end]))
+    cone.cu = (cone.d - 1) / -gu
+
+    cone.grad_updated = true
+    return cone.grad
+end
+
+function update_dual_grad(cone::EpiNormOne{T}) where T
+    u = cone.dual_point[1]
+    @views w = cone.dual_point[2:end]
+    dual_zeta = cone.dual_zeta
+    dg = cone.dual_grad
+
+    mu = w / u # TODO dual mu
+    @. dual_zeta = T(0.5) * (u - remul(mu, w))
+    cu = (cone.d - 1) / u
+
+    dg[1] = cu - sum(inv, dual_zeta)
+
+    @. dg[2:end] = mu / dual_zeta
+
+    cone.dual_grad_updated = true
+    return dg
+end
+
+function update_inv_hess(cone::EpiNormOne)
+    isdefined(cone, :inv_hess) || alloc_inv_hess!(cone)
+    @assert cone.grad_updated
+    d = cone.d
+    u = -cone.grad[1]
+    zeta = cone.grad_zeta
+    tzi2 = cone.s1
+    g = -cone.point
+    Hnz = cone.inv_hess.data.nzval # modify nonzeros of upper triangle
+
+    ui = inv(u)
+    @. tzi2 = (inv(zeta) - ui) / zeta
+    Hnz[1] = sum(tzi2) - cone.cu / u
+
+    k = 2
+    @inbounds for i in 1:d
+        Hnz[k] = -g[1 + i] / zeta[i]
+        Hnz[k + 1] = tzi2[i]
+        k += 2
+    end
+
+    cone.inv_hess_updated = true
+    return cone.inv_hess
+end
+
+function inv_hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::EpiNormOne,
+    )
+    @assert cone.grad_updated
+    u = -cone.grad[1]
+    mu = cone.grad_mu
+    zeta = cone.grad_zeta
+    s1 = cone.s1
+
+    @inbounds for j in 1:size(prod, 2)
+        p = arr[1, j]
+        @views r = arr[2:end, j]
+
+        pui = p / u
+        @. s1 = (p - mu * r) / zeta
+
+        prod[1, j] = sum((s1[i] - pui) / zeta[i] for i in 1:cone.d) -
+            cone.cu * pui
+
+        @. prod[2:end, j] = (r / u - s1 * mu) / zeta
+    end
+
+    return prod
+end
+
+function update_hess_aux(cone::EpiNormOne)
+    @assert !cone.hess_aux_updated
+    @assert cone.grad_updated
+    zeta = cone.grad_zeta
+    u = -cone.grad[1]
+    w = -cone.grad[2:end]
+    wumzi = cone.wumzi
+    umz = cone.s1
+
+    @. umz = u - zeta
+    cone.Zu = -cone.cu + sum(inv, umz)
+
+    @. wumzi = w / umz
+
+    @. cone.zti = u - wumzi * w
+
+    cone.hess_aux_updated = true
+end
+
+function update_hess(cone::EpiNormOne)
+    cone.hess_aux_updated || update_hess_aux(cone)
+    isdefined(cone, :hess) || alloc_hess!(cone)
+    d = cone.d
+    u = -cone.grad[1]
+    w = -cone.grad[2:end]
+    zeta = cone.grad_zeta
+    wumzi = cone.wumzi
+    H = cone.hess.data
+
+    huu = H[1, 1] = u / cone.Zu
+
+    @views Huw = H[1, 2:end]
+    @views Huw2 = H[2:end, 1]
+    vec_copyto!(Huw2, wumzi)
+    @. Huw = Huw2 * huu
+    @views mul!(H[2:end, 2:end], Huw2, Huw')
+
+    @inbounds for i in 1:d
+        k = 1 + i
+        H[k, k] += zeta[i] * cone.zti[i]
+    end
+
+    cone.hess_updated = true
+    return cone.hess
+end
+
+function hess_prod!(
+    prod::AbstractVecOrMat,
+    arr::AbstractVecOrMat,
+    cone::EpiNormOne{T},
+    ) where T
+    cone.hess_aux_updated || update_hess_aux(cone)
+    u = -cone.grad[1]
+    wumzi = cone.wumzi
+
+    @inbounds for j in 1:size(prod, 2)
+        p = arr[1, j]
+        @views r = arr[2:end, j]
+
+        c1 = u * (p + dot(wumzi, r)) / cone.Zu
+        prod[1, j] = c1
+
+        @. prod[2:end, j] = c1 * wumzi + cone.grad_zeta * r * cone.zti
+    end
+
+    return prod
+end
+
+function dder3(
+    cone::EpiNormOne{T},
+    dir::AbstractVector{T},
+    ) where {T <: Real}
+    cone.dder3 .= -dder3(cone, dir, hess(cone) * dir)
+    return cone.dder3
+end
+
+function dder3(
+    cone::EpiNormOne{T},
+    pdir::AbstractVector{T},
+    ddir::AbstractVector{T},
+    ) where {T <: Real}
+    cone.hess_aux_updated || update_hess_aux(cone)
+    dder3 = cone.dder3
+    point = cone.point
+    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+    Zu = cone.Zu
+    ζ2 = -cone.grad_zeta
+
+    x = pdir[1]
+    a = d1[1]
+    z = pdir[2:end]
+    c = d1[2:end]
+
+    (true_p, true_r) = (ddir[1], ddir[2:end])
+    prod2 = hess_prod!(zeros(T, cone.dim), pdir, cone)
+    (true_p2, true_r2) = (prod2[1], prod2[2:end])
+
+    tgp = cone.grad[1]
+    tgr = cone.grad[2:end]
+    r = cone.point[2:end]
+    umz = tgp .- ζ2
+    ζ = ζ2 * 2 * tgp
+
+    dder3[1] = a * true_p + x * true_p2 -
+    4 * tgp^2 * sum(
+        (
+        # true_p * true_p2 * (4 * tgp^4 .- ζ .* (tgp^2 .+ 5 * tgr.^2) .- (5 .+ tgr.^2 ./ umz.^2) .* ζ.^2 / 2 - 4 * tgr.^4 ./ umz * tgp - umz .* ζ.^2 / tgp) / tgp ./ ζ ./ umz +
+        true_p * true_p2 * (-ζ .* (tgp^2 .+ 5 * tgr.^2) .- (5 .+ tgr.^2 ./ umz.^2) .* ζ.^2 / 2 - (4 * tgr.^4 .- 4 * tgp^4) ./ umz * tgp - 2 * tgp^3 * ζ ./ umz - umz .* ζ.^2 / tgp) / tgp ./ ζ ./ umz +
+        # true_p * true_p2 * (4 * tgp^4 .* umz.^2 .- ζ .* (tgp^2 .+ 5 * tgr.^2) .* umz.^2 .- (5 .* umz.^2 .+ tgr.^2) .* ζ.^2 / 2 - 4 * tgr.^4 .* umz * tgp - umz.^3 .* ζ.^2 / tgp) / tgp ./ ζ ./ umz.^3 +
+        (tgr .* (-(ζ / 2 - ζ2.^2).^2 - ζ2.^4) ./ umz.^3) .* (c * true_p + z * true_p2) +
+        c .* z .* ζ2.^3 .* -ζ.^2 / 4 ./ umz.^3
+        ) ./ ζ.^2)
+    dder3[1] /= -Zu
+
+    dder3[2:end] .=  ζ2 ./ umz .* (tgp * r * dder3[1] +
+        (c .* true_p + z * true_p2) .* tgp .* (ζ2 ./ umz).^2 +
+        -c .* z .* tgr .* (2 * tgp^2 .- ζ / 2) .* (ζ2 ./ umz).^2 .+
+        r .* true_p * true_p2 .* (ζ2 ./ umz).^2
+        )
+
+
+    dder3 ./= 2
+
+    return dder3
+end
+
+function alloc_inv_hess!(cone::EpiNormOne{T}) where {T <: Real}
+    # initialize sparse idxs for upper triangle of Hessian
+    dim = cone.dim
+    nnz_tri = 2 * dim - 1
+    I = Vector{Int}(undef, nnz_tri)
+    J = Vector{Int}(undef, nnz_tri)
+    idxs1 = 1:dim
+    @views I[idxs1] .= 1
+    @views J[idxs1] .= idxs1
+    idxs2 = (dim + 1):(2 * dim - 1)
+    @views I[idxs2] .= 2:dim
+    @views J[idxs2] .= 2:dim
+    V = ones(T, nnz_tri)
+    cone.inv_hess = Symmetric(sparse(I, J, V, dim, dim), :U)
+    return
+end

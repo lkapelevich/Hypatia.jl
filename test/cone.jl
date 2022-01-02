@@ -528,6 +528,20 @@ end
 
 show_time_alloc(C::Type{<:Cones.EpiNormInf}) = show_time_alloc(C(9))
 
+# EpiNormOne
+function test_oracles(C::Type{<:Cones.EpiNormOne})
+    for dw in [1, 2, 5]
+        test_oracles(C(1 + dw))
+    end
+end
+
+function test_barrier(C::Type{<:Cones.EpiNormOne})
+    # TODO
+    error()
+end
+
+show_time_alloc(C::Type{<:Cones.EpiNormOne}) = show_time_alloc(C(9))
+
 
 # EpiNormEucl
 function test_oracles(C::Type{<:Cones.EpiNormEucl})
