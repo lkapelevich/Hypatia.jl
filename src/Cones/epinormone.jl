@@ -306,7 +306,6 @@ function dder3(
     ) where {T <: Real}
     cone.hess_aux_updated || update_hess_aux(cone)
     dder3 = cone.dder3
-    point = cone.point
     d1 = hess_prod!(zeros(T, cone.dim), pdir, cone)
     d2 = ddir
 

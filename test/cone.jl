@@ -196,7 +196,7 @@ function test_barrier(
     TFD_dir = TFD.(dir)
 
     barrier_dir(s, t) = barrier(s + t * TFD_dir)
-
+    
     fd_hess_dir = ForwardDiff.gradient(s -> ForwardDiff.derivative(t ->
         barrier_dir(s, t), 0), TFD_point)
 
@@ -627,6 +627,29 @@ function test_barrier(C::Type{Cones.EpiNormSpectral{T, R}}) where {T, R}
 end
 
 show_time_alloc(C::Type{<:Cones.EpiNormSpectral}) = show_time_alloc(C(2, 3))
+
+# EpiNormNuclear
+function test_oracles(C::Type{<:Cones.EpiNormNuclear})
+    for (dr, ds) in [(1, 1), (1, 2), (2, 2), (2, 4), (3, 4)]
+        test_oracles(C(dr, ds))
+    end
+end
+
+function test_barrier(C::Type{Cones.EpiNormNuclear{T, R}}) where {T, R}
+    (dr, ds) = (2, 3)
+    function barrier(s)
+        u = s[1]
+        W = reshape(new_vec(s[2:end], dr * ds, R), dr, ds)
+        (U, s, Vt) = svd(W)
+        zeta = u - sum(abs, s)
+        (gu, gw) = Cones.epinorminf_dg(u, s, dr, zeta)
+        return -1 - dr + sum(log(abs2(gu) - abs2(wi)) for wi in gw) -
+            (dr - 1) * log(-gu)
+    end
+    test_barrier(C(dr, ds), barrier)
+end
+
+show_time_alloc(C::Type{<:Cones.EpiNormNuclear}) = show_time_alloc(C(2, 3))
 
 
 # MatrixEpiPerSquare
