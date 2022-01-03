@@ -56,7 +56,8 @@ function build(inst::SparsePCANative{T}) where {T <: Real}
             Diagonal(Gl1vec);
             ]
         h = vcat(hpsd, T(k), zeros(T, dimx))
-        push!(cones, Cones.EpiNormInf{T, T}(1 + dimx, use_dual = true))
+        # push!(cones, Cones.EpiNormInf{T, T}(1 + dimx, use_dual = true))
+        push!(cones, Cones.EpiNormOne{T}(1 + dimx))
     else
         l1 = Cones.scale_svec!(ones(T, dimx), sqrt(T(2)))
         G = [
