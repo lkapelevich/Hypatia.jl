@@ -18,6 +18,7 @@ function cone_types(T::Type{<:Real})
         Cones.LinMatrixIneq{T},
         Cones.EpiNormInf{T, T},
         Cones.EpiNormInf{T, Complex{T}},
+        Cones.EpiNormOne{T},
         Cones.EpiNormEucl{T},
         Cones.EpiPerSquare{T},
         Cones.EpiNormSpectralTri{T, T},

@@ -307,44 +307,28 @@ function dder3(
     cone.hess_aux_updated || update_hess_aux(cone)
     dder3 = cone.dder3
     point = cone.point
-    d1 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
-    Zu = cone.Zu
-    ζ2 = -cone.grad_zeta
+    d1 = hess_prod!(zeros(T, cone.dim), pdir, cone)
+    d2 = ddir
 
-    x = pdir[1]
-    a = d1[1]
-    z = pdir[2:end]
-    c = d1[2:end]
+    u = -cone.grad[1]
+    w = -cone.grad[2:end]
+    mu = cone.grad_mu
+    zeta = cone.grad_zeta
 
-    (true_p, true_r) = (ddir[1], ddir[2:end])
-    prod2 = hess_prod!(zeros(T, cone.dim), pdir, cone)
-    (true_p2, true_r2) = (prod2[1], prod2[2:end])
+    p = d1[1]
+    x = d2[1]
+    @views r = d1[2:end]
+    @views z = d2[2:end]
+    s1 = cone.s1
+    @. s1 = (z * mu - x) * (p - r * mu) / zeta + (x * p - r * z) / 2u
+    s2 = cone.s2
+    @. s2 = -(p * z + x * r) / 2u
 
-    tgp = cone.grad[1]
-    tgr = cone.grad[2:end]
-    r = cone.point[2:end]
-    umz = tgp .- ζ2
-    ζ = ζ2 * 2 * tgp
+    dder3[1] = p * cone.cu / abs2(u) * x + sum((s1[i] + mu[i] * s2[i] +
+        x * p / u) / abs2(zeta[i]) for i in 1:cone.d)
+    @. dder3[2:end] = (s2 - mu * (s1 - r * z / u)) / abs2(zeta)
 
-    dder3[1] = a * true_p + x * true_p2 -
-    4 * tgp^2 * sum(
-        (
-        # true_p * true_p2 * (4 * tgp^4 .- ζ .* (tgp^2 .+ 5 * tgr.^2) .- (5 .+ tgr.^2 ./ umz.^2) .* ζ.^2 / 2 - 4 * tgr.^4 ./ umz * tgp - umz .* ζ.^2 / tgp) / tgp ./ ζ ./ umz +
-        true_p * true_p2 * (-ζ .* (tgp^2 .+ 5 * tgr.^2) .- (5 .+ tgr.^2 ./ umz.^2) .* ζ.^2 / 2 - (4 * tgr.^4 .- 4 * tgp^4) ./ umz * tgp - 2 * tgp^3 * ζ ./ umz - umz .* ζ.^2 / tgp) / tgp ./ ζ ./ umz +
-        # true_p * true_p2 * (4 * tgp^4 .* umz.^2 .- ζ .* (tgp^2 .+ 5 * tgr.^2) .* umz.^2 .- (5 .* umz.^2 .+ tgr.^2) .* ζ.^2 / 2 - 4 * tgr.^4 .* umz * tgp - umz.^3 .* ζ.^2 / tgp) / tgp ./ ζ ./ umz.^3 +
-        (tgr .* (-(ζ / 2 - ζ2.^2).^2 - ζ2.^4) ./ umz.^3) .* (c * true_p + z * true_p2) +
-        c .* z .* ζ2.^3 .* -ζ.^2 / 4 ./ umz.^3
-        ) ./ ζ.^2)
-    dder3[1] /= -Zu
-
-    dder3[2:end] .=  ζ2 ./ umz .* (tgp * r * dder3[1] +
-        (c .* true_p + z * true_p2) .* tgp .* (ζ2 ./ umz).^2 +
-        -c .* z .* tgr .* (2 * tgp^2 .- ζ / 2) .* (ζ2 ./ umz).^2 .+
-        r .* true_p * true_p2 .* (ζ2 ./ umz).^2
-        )
-
-
-    dder3 ./= 2
+    dder3 .= hess_prod!(zeros(T, cone.dim), copy(dder3), cone)
 
     return dder3
 end

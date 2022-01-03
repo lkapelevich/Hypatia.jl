@@ -916,6 +916,80 @@ function epinorminf7(T; options...)
     @test r.z ≈ [1.25, 1, -0.75, 0.75, 1] atol=tol rtol=tol
 end
 
+function epinormone1(T; options...)
+    tol = test_tol(T)
+    Tirt2 = inv(sqrt(T(2)))
+    c = T[0, -1, -1]
+    A = T[1 0 0; 0 1 0]
+    b = [one(T), Tirt2]
+    G = SparseMatrixCSC(-one(T) * I, 3, 3)
+    h = zeros(T, 3)
+    cones = Cone{T}[Cones.EpiNormOne{T}(3, use_dual = true)]
+
+    r = build_solve_check(c, A, b, G, h, cones, tol; options...)
+    @test r.status == Solvers.Optimal
+    @test r.primal_obj ≈ -1 - Tirt2 atol=tol rtol=tol
+    @test r.x ≈ [1, Tirt2, 1] atol=tol rtol=tol
+    @test r.y ≈ [1, 1] atol=tol rtol=tol
+end
+
+function epinormone2(T; options...)
+    tol = 10 * test_tol(T)
+    l = 3
+    L = 2l + 1
+    c = collect(T, -l:l)
+    A = spzeros(T, 2, L)
+    A[1, 1] = A[1, L] = A[2, 1] = 1; A[2, L] = -1
+    b = T[0, 0]
+    G = [spzeros(T, 1, L); sparse(one(T) * I, L, L); spzeros(T, 1, L);
+        sparse(T(2) * I, L, L)]
+    h = zeros(T, 2L + 2); h[1] = 1; h[L + 2] = 1
+    cones = Cone{T}[Cones.EpiNormOne{T}(L + 1),
+        Cones.EpiNormOne{T}(L + 1, use_dual = true)]
+
+    r = build_solve_check(c, A, b, G, h, cones, tol;
+        obj_offset = one(T), options...)
+    @test r.status == Solvers.Optimal
+    @test r.primal_obj ≈ -l + 2 atol=tol rtol=tol
+    @test r.x[2] ≈ 0.5 atol=tol rtol=tol
+    @test r.x[end - 1] ≈ -0.5 atol=tol rtol=tol
+    @test sum(abs, r.x) ≈ 1 atol=tol rtol=tol
+end
+
+function epinormone3(T; options...)
+    tol = test_tol(T)
+    c = T[1, 0, 0, 0, 0, 0]
+    A = zeros(T, 0, 6)
+    b = zeros(T, 0)
+    G = Diagonal(-one(T) * I, 6)
+    h = zeros(T, 6)
+
+    for use_dual in (false, true)
+        cones = Cone{T}[Cones.EpiNormOne{T}(6, use_dual = use_dual)]
+
+        r = build_solve_check(c, A, b, G, h, cones, tol; options...)
+        @test r.status == Solvers.Optimal
+        @test r.primal_obj ≈ 0 atol=tol rtol=tol
+        @test norm(r.x) ≈ 0 atol=tol rtol=tol
+    end
+end
+
+function epinormone4(T; options...)
+    tol = test_tol(T)
+    c = T[0, 1, -1]
+    A = T[1 0 0; 0 1 0]
+    b = T[1, -0.4]
+    G = -one(T) * I
+    h = zeros(T, 3)
+    cones = Cone{T}[Cones.EpiNormOne{T}(3)]
+
+    r = build_solve_check(c, A, b, G, h, cones, tol; options...)
+    @test r.status == Solvers.Optimal
+    @test r.primal_obj ≈ -1 atol=tol rtol=tol
+    @test r.x ≈ [1, -0.4, 0.6] atol=tol rtol=tol
+    @test r.y ≈ [1, 0] atol=tol rtol=tol
+end
+
 function epinormeucl1(T; options...)
     tol = test_tol(T)
     Trt2 = sqrt(T(2))

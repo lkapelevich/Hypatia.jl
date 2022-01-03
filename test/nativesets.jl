@@ -35,6 +35,8 @@ inst_cones_few = [
     # "linmatrixineq1",
     # "epinorminf4",
     # "epinorminf6",
+    # "epinormone4",
+    # "epinormone6",
     # "epinormeucl1",
     # "epipersquare1",
     # "epinormspectraltri2",
@@ -90,6 +92,10 @@ inst_cones_many = [
     "epinorminf5",
     "epinorminf6",
     "epinorminf7",
+    "epinormone1",
+    "epinormone2",
+    "epinormone3",
+    "epinormone4",
     "epinormeucl1",
     "epinormeucl2",
     "epinormeucl3",
@@ -179,6 +185,6 @@ inst_indirect = [
     ]
 
 inst_modify = [
-    "modify1",
-    "modify2",
+    # "modify1",
+    # "modify2",
     ]

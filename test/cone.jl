@@ -535,9 +535,18 @@ function test_oracles(C::Type{<:Cones.EpiNormOne})
     end
 end
 
+# FIXME ask in ForwardDiff
+big(t::ForwardDiff.Dual) = t
 function test_barrier(C::Type{<:Cones.EpiNormOne})
-    # TODO
-    error()
+    function barrier(s)
+        (u, w) = (s[1], s[2:end])
+        d = length(w)
+        zeta = u - sum(abs, w)
+        (gu, gw) = Cones.epinorminf_dg(u, w, d, zeta)
+        return -1 - d + sum(log(abs2(gu) - abs2(wi)) for wi in gw) -
+            (d - 1) * log(-gu)
+    end
+    test_barrier(C(4), barrier)
 end
 
 show_time_alloc(C::Type{<:Cones.EpiNormOne}) = show_time_alloc(C(9))

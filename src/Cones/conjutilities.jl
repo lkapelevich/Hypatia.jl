@@ -38,16 +38,16 @@ function rootnewton(
     increasing::Bool = true,
     ) where {T <: Real}
     curr = init
-    f_new = f(BigFloat(curr))
+    f_new = f(big(curr))
     iter = 0
     while abs(f_new) > 1000eps(T)
-        candidate = curr - f_new / g(BigFloat(curr))
+        candidate = curr - f_new / g(big(curr))
         if (candidate < lower) || (candidate > upper)
             curr = (lower + upper) / 2
         else
             curr = candidate
         end
-        f_new = f(BigFloat(curr))
+        f_new = f(big(curr))
         if (f_new < 0 && increasing) || (f_new >= 0 && !increasing)
             lower = curr
         else
