@@ -32,7 +32,7 @@ total_shift = 1e-4
 piter_shift = 1e-5
 
 # file locations
-bench_file = joinpath(@__DIR__, "raw", "conjgrads_1209.csv")
+bench_file = joinpath(@__DIR__, "raw", "conjgrads_0103.csv")
 output_dir = mkpath(joinpath(@__DIR__, "analysis"))
 tex_dir = mkpath(joinpath(output_dir, "tex"))
 stats_dir = mkpath(joinpath(output_dir, "stats"))
@@ -165,10 +165,11 @@ function preprocess_df()
     # only care about instances for cones we do scaling for
     scal_cones = ["Nonnegative", "EpiNormEucl", "PosSemidefTri", "EpiNormInf",
         "HypoPerLog", "HypoPowerMean", "HypoGeoMean", "HypoPerLogdetTri",
-        "HypoRootdetTri", "EpiPerSquare", "GeneralizedPower", "EpiNormSpectral"]
+        "HypoRootdetTri", "EpiPerSquare", "GeneralizedPower", "EpiNormSpectral",
+        "EpiNormOne",]
     conj_cones = ["EpiNormInf", "HypoPerLog", "HypoPowerMean", "HypoGeoMean",
         "HypoPerLogdetTri", "HypoRootdetTri", "GeneralizedPower",
-        "EpiNormSpectral"]
+        "EpiNormSpectral", "EpiNormOne",]
     # also manually remove instances with complex versions of scal_cones
     cones_ok(s) = (s2 = eval(Meta.parse(s)); all(t -> (t in scal_cones), s2) &&
         any(t -> (t in conj_cones), s2))
