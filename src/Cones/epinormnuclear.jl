@@ -154,20 +154,23 @@ function update_feas(cone::EpiNormNuclear{T}) where {T <: Real}
     @assert !cone.feas_updated
     cone.feas_updated = true
     u = cone.point[1]
-    (u > eps(T)) || return false
-    @views W = vec_copyto!(cone.w1, cone.point[2:end])
+    if u > eps(T)
+        @views W = vec_copyto!(cone.w1, cone.point[2:end])
 
-    # fast bounds: frob <= nuc <= frob * rtd1
-    frob = norm(W, 2)
-    if u - sqrt(T(cone.d1)) * frob > eps(T)
-        cone.is_feas = true
-    elseif u - frob > eps(T)
-        cone.is_feas = false
+        # fast bounds: frob <= nuc <= frob * rtd1
+        frob = norm(W, 2)
+        if u - sqrt(T(cone.d1)) * frob > eps(T)
+            cone.is_feas = true
+        elseif u - frob < eps(T)
+            cone.is_feas = false
+        else
+            # final feasibility check: nuc = tr(sqrt(W*W')), rescale W*W' by inv(u)
+            mul!(cone.U1, W, W', inv(u), false)
+            λ = eigvals!(Hermitian(cone.U1, :U))
+            cone.is_feas = (sqrt(u) - sum(sqrt(abs(λ_i)) for λ_i in λ) > eps(T))
+        end
     else
-        # final feasibility check: nuc = tr(sqrt(W*W')), rescale W*W' by inv(u)
-        mul!(cone.U1, W, W', inv(u), false)
-        λ = eigvals!(Hermitian(cone.U1, :U))
-        cone.is_feas = (sqrt(u) - sum(sqrt(abs(λ_i)) for λ_i in λ) > eps(T))
+        cone.is_feas = false
     end
     return cone.is_feas
 end

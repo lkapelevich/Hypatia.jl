@@ -1324,6 +1324,125 @@ function epinormspectral4(T; options...)
     end
 end
 
+function epinormnuclear1(T; options...)
+    tol = test_tol(T)
+    Random.seed!(1)
+    (Xn, Xm) = (3, 4)
+    for is_complex in (false, true)
+        R = (is_complex ? Complex{T} : T)
+        dim = Cones.vec_length(R, Xn * Xm)
+        c = vcat(one(T), zeros(T, dim))
+        A = hcat(zeros(T, dim, 1), Matrix{T}(I, dim, dim))
+        b = rand(T, dim)
+        G = -one(T) * I
+        h = vcat(zero(T), rand(T, dim))
+
+        for use_dual in (false, true)
+            cones = Cone{T}[Cones.EpiNormNuclear{T, R}(Xn, Xm,
+                use_dual = use_dual)]
+
+            r = build_solve_check(c, A, b, G, h, cones, tol; options...)
+            @test r.status == Solvers.Optimal
+
+            S = zeros(R, Xn, Xm)
+            @views Cones.vec_copyto!(S, r.s[2:end])
+            prim_svdvals = svdvals(S)
+            Z = zero(S)
+            @views Cones.vec_copyto!(Z, r.z[2:end])
+            dual_svdvals = svdvals(Z)
+            if !use_dual
+                @test sum(prim_svdvals) ≈ r.s[1] atol=tol rtol=tol
+                @test dual_svdvals[1] ≈ r.z[1] atol=tol rtol=tol
+            else
+                @test prim_svdvals[1] ≈ r.s[1] atol=tol rtol=tol
+                @test sum(dual_svdvals) ≈ r.z[1] atol=tol rtol=tol
+            end
+        end
+    end
+end
+
+function epinormnuclear2(T; options...)
+    tol = test_tol(T)
+    Random.seed!(1)
+    (Xn, Xm) = (3, 4)
+    for is_complex in (false, true)
+        R = (is_complex ? Complex{T} : T)
+        dim = Cones.vec_length(R, Xn * Xm)
+        mat = rand(R, Xn, Xm)
+        c = zeros(T, dim)
+        Cones.vec_copyto!(c, mat)
+        c .*= -1
+        A = zeros(T, 0, dim)
+        b = T[]
+        G = vcat(zeros(T, 1, dim), Matrix{T}(-I, dim, dim))
+        h = vcat(one(T), zeros(T, dim))
+
+        for use_dual in (false, true)
+            cones = Cone{T}[Cones.EpiNormNuclear{T, R}(Xn, Xm,
+                use_dual = use_dual)]
+            r = build_solve_check(c, A, b, G, h, cones, tol; options...)
+            @test r.status == Solvers.Optimal
+            if !use_dual
+                @test r.primal_obj ≈ -svdvals(mat)[1] atol=tol rtol=tol
+            else
+                @test r.primal_obj ≈ -sum(svdvals(mat)) atol=tol rtol=tol
+            end
+        end
+    end
+end
+
+function epinormnuclear3(T; options...)
+    tol = test_tol(T)
+    for is_complex in (false, true), (Xn, Xm) in ((1, 1), (1, 3), (2, 2), (3, 4))
+        R = (is_complex ? Complex{T} : T)
+        dim = Cones.vec_length(R, Xn * Xm)
+        c = fill(-one(T), dim)
+        A = zeros(T, 0, dim)
+        b = T[]
+        G = vcat(zeros(T, 1, dim), Matrix{T}(-I, dim, dim))
+        h = zeros(T, dim + 1)
+
+        for use_dual in (false, true)
+            cones = Cone{T}[Cones.EpiNormNuclear{T, R}(Xn, Xm,
+                use_dual = use_dual)]
+            r = build_solve_check(c, A, b, G, h, cones, tol; options...)
+            @test r.status == Solvers.Optimal
+            @test r.primal_obj ≈ 0 atol=tol rtol=tol
+            @test norm(r.x) ≈ 0 atol=tol rtol=tol
+        end
+    end
+end
+
+function epinormnuclear4(T; options...)
+    tol = test_tol(T)
+    c = T[1]
+    A = zeros(T, 0, 1)
+    b = T[]
+    G = zeros(T, 7, 1)
+    G[1, 1] = -1
+    h = T[0, 1, 1, 1, -1, 0, 1]
+
+    rt2 = sqrt(T(2))
+    rt3 = sqrt(T(3))
+    invrt2 = inv(rt2)
+    invrt3 = inv(rt3)
+    for use_dual in (false, true)
+        cones = Cone{T}[Cones.EpiNormNuclear{T, T}(2, 3, use_dual = use_dual)]
+        r = build_solve_check(c, A, b, G, h, cones, tol; options...)
+        @test r.status == Solvers.Optimal
+        if !use_dual
+            @test r.primal_obj ≈ rt2 + rt3 atol=tol rtol=tol
+            @test r.s ≈ T[rt2 + rt3, 1, 1, 1, -1, 0, 1] atol=tol rtol=tol
+            @test r.z ≈ T[1, -invrt2, -invrt3, -invrt2, invrt3,
+                0, -invrt3] atol=tol rtol=tol
+        else
+            @test r.primal_obj ≈ rt3 atol=tol rtol=tol
+            @test r.s ≈ T[rt3, 1, 1, 1, -1, 0, 1] atol=tol rtol=tol
+            @test r.z ≈ T[1, 0, -invrt3, 0, invrt3, 0, -invrt3] atol=tol rtol=tol
+        end
+    end
+end
+
 function matrixepipersquare1(T; options...)
     tol = test_tol(T)
     Random.seed!(1)
