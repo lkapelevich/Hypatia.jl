@@ -208,7 +208,7 @@ function is_dual_feas(cone::EpiNormNuclear{T}) where {T <: Real}
 
     # compute SVD and final feasibility check
     cone.dual_W_svd = svd(W, full = false) # TODO in place
-    return (u - maximum(cone.W_svd.S) > eps(T))
+    return (u - maximum(cone.dual_W_svd.S) > eps(T))
 end
 
 function update_dual_grad(cone::EpiNormNuclear{T}) where T

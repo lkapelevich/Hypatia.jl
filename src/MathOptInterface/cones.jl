@@ -31,6 +31,7 @@ cone_from_moi(::Type{T}, cone::MOI.NormSpectralCone) where {T <: Real} =
 
 cone_from_moi(::Type{T}, cone::MOI.NormNuclearCone) where {T <: Real} =
     Cones.EpiNormSpectral{T, T}(extrema((cone.row_dim, cone.column_dim))...,
+    # Cones.EpiNormNuclear{T, T}(extrema((cone.row_dim, cone.column_dim))...,
     use_dual = true)
 
 cone_from_moi(::Type{T}, cone::MOI.PowerCone{T}) where {T <: Real} =
@@ -378,6 +379,29 @@ cone_from_moi(::Type{T}, cone::EpiNormSpectralCone{T, R}) where {T <: Real, R <:
 """
 $(TYPEDEF)
 
+See [`Cones.EpiNormNuclear`](@ref).
+
+$(TYPEDFIELDS)
+"""
+struct EpiNormNuclearCone{T <: Real, R <: RealOrComplex{T}} <: MOI.AbstractVectorSet
+    d1::Int
+    d2::Int
+    use_dual::Bool
+end
+export EpiNormNuclearCone
+
+EpiNormNuclearCone{T, R}(d1::Int, d2::Int) where {T <: Real, R <: RealOrComplex{T}} =
+    EpiNormNuclearCone{T, R}(d1, d2, false)
+
+MOI.dimension(cone::EpiNormNuclearCone{T, R}) where {T <: Real, R <: RealOrComplex{T}} =
+    1 + Cones.vec_length(R, cone.d1 * cone.d2)
+
+cone_from_moi(::Type{T}, cone::EpiNormNuclearCone{T, R}) where {T <: Real, R <: RealOrComplex{T}} =
+    Cones.EpiNormNuclear{T, R}(cone.d1, cone.d2, use_dual = cone.use_dual)
+
+"""
+$(TYPEDEF)
+
 See [`Cones.MatrixEpiPerSquare`](@ref).
 
 $(TYPEDFIELDS)
@@ -699,6 +723,8 @@ const HypatiaCones{T <: Real} = Union{
     EpiNormSpectralTriCone{T, Complex{T}},
     EpiNormSpectralCone{T, T},
     EpiNormSpectralCone{T, Complex{T}},
+    EpiNormNuclearCone{T, T},
+    EpiNormNuclearCone{T, Complex{T}},
     MatrixEpiPerSquareCone{T, T},
     MatrixEpiPerSquareCone{T, Complex{T}},
     GeneralizedPowerCone{T},
