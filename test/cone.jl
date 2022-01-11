@@ -196,7 +196,7 @@ function test_barrier(
     TFD_dir = TFD.(dir)
 
     barrier_dir(s, t) = barrier(s + t * TFD_dir)
-    
+
     fd_hess_dir = ForwardDiff.gradient(s -> ForwardDiff.derivative(t ->
         barrier_dir(s, t), 0), TFD_point)
 
@@ -640,7 +640,7 @@ function test_barrier(C::Type{Cones.EpiNormNuclear{T, R}}) where {T, R}
     function barrier(s)
         u = s[1]
         W = reshape(new_vec(s[2:end], dr * ds, R), dr, ds)
-        (U, s, Vt) = svd(W)
+        s = svdvals(W)
         zeta = u - sum(abs, s)
         (gu, gw) = Cones.epinorminf_dg(u, s, dr, zeta)
         return -1 - dr + sum(log(abs2(gu) - abs2(wi)) for wi in gw) -

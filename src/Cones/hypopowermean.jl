@@ -147,8 +147,7 @@ function update_dual_grad(cone::HypoPowerMean{T}) where {T <: Real}
     f(y) = sum(ai * log(y - u * ai) for ai in α) - sumlog
     fp(y) = sum(ai / (y - u * ai) for ai in α)
     # new_bound = rootnewton(f, fp, lower = zero(T), upper = exp(sumlog) + u / d)
-    init = maximum(u * αi for αi in α) / 2
-    new_bound = rootnewton(f, fp, init = init, increasing = true)
+    new_bound = rootnewton(f, fp, init = zero(T), increasing = true)
 
     dual_g_ϕ = inv(new_bound)
     dg[1] = -inv(u) - dual_g_ϕ
