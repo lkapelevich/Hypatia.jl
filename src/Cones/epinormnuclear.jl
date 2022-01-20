@@ -584,5 +584,24 @@ function dder3(
 
     dder3 .= hess_prod!(zeros(T, cone.dim), copy(dder3), cone)
 
+    # dder3 = cone.dder3
+    # function grad2(s)
+    #     u = s[1]
+    #     W = reshape(s[2:end], cone.d1, cone.d2)
+    #     (U, s, V) = svd(W)
+    #     zeta = u - sum(abs, s)
+    #     (gu, gw) = Cones.epinorminf_dg(u, s, cone.d1, zeta)
+    #     @show length(gw), size(W)
+    #     gW = U * Diagonal(gw) * V'
+    #     return vcat(gu, vec(gW))
+    # end
+    #
+    # d1 = pdir
+    # d2 = inv_hess_prod!(zeros(T, cone.dim), ddir, cone)
+    # grad_dir(t, s) = grad2(cone.point + t * d1 + s * d2)
+    # dder3 .= -ForwardDiff.derivative(x -> ForwardDiff.derivative(
+    #         y -> grad_dir(x, y), BigFloat(0)
+    #     ), BigFloat(0)) / 2
+
     return dder3
 end
