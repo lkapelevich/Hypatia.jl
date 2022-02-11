@@ -11,11 +11,12 @@ import BenchmarkProfiles
 keep_set = "various"
 
 enhancements = [
-    "basic",
-    "prox",
-    "TOA",
-    "curve",
+    # "basic",
+    # "prox",
+    # "TOA",
+    # "curve",
     "comb",
+    "symm",
     ]
 
 compare_pairs = [
@@ -32,7 +33,7 @@ total_shift = 1e-4
 piter_shift = 1e-5
 
 # file locations
-bench_file = joinpath(@__DIR__, "raw", "conjgrads_0103.csv")
+bench_file = joinpath(@__DIR__, "raw", "scalcones_all.csv")
 output_dir = mkpath(joinpath(@__DIR__, "analysis"))
 tex_dir = mkpath(joinpath(output_dir, "tex"))
 stats_dir = mkpath(joinpath(output_dir, "stats"))
@@ -43,7 +44,8 @@ function extra_stats(all_df)
     all_df = transform(all_df, [:n, :p, :q] => ((x, y, z) -> x .+ y .+ z) => :npq)
 
     # basic or comb converged
-    for enh in ("basic", "comb")
+    # for enh in ("basic", "comb")
+    for enh in ("comb", "symm")
         enh_conv = filter(t -> ((t.enhancement == enh) && t.conv), all_df)
         enh_data = select(enh_conv,
             :npq, :iters, :solve_time,
@@ -55,21 +57,23 @@ function extra_stats(all_df)
     end
 
     # basic/comb both converged
-    two_solver = filter(t -> (t.enhancement in ("basic", "comb")), all_df)
-    two_solver = combine(groupby(two_solver, :inst_key), names(all_df),
-        :conv => all => :two_conv)
-    two_solver_conv = filter(t -> t.two_conv, two_solver)
-    rel_impr = (x -> (x[1] - x[2]) / x[1])
-    two_solver_conv = combine(groupby(two_solver_conv, :inst_key),
-        [:enhancement, :solve_time], :solve_time => rel_impr => :time_impr,
-        [:enhancement, :iters], :iters => rel_impr => :iters_impr,
-        )
-    filter!(t -> (t.enhancement == "comb"), two_solver_conv)
-    CSV.write(joinpath(csv_dir, "basiccombconv.csv"),
-        select(two_solver_conv, :solve_time, :time_impr, :iters, :iters_impr))
-
+    # two_solver = filter(t -> (t.enhancement in ("basic", "comb")), all_df)
+    # two_solver = combine(groupby(two_solver, :inst_key), names(all_df),
+    #     :conv => all => :two_conv)
+    # two_solver_conv = filter(t -> t.two_conv, two_solver)
+    # rel_impr = (x -> (x[1] - x[2]) / x[1])
+    # two_solver_conv = combine(groupby(two_solver_conv, :inst_key),
+    #     [:enhancement, :solve_time], :solve_time => rel_impr => :time_impr,
+    #     [:enhancement, :iters], :iters => rel_impr => :iters_impr,
+    #     )
+    # filter!(t -> (t.enhancement == "comb"), two_solver_conv)
+    # CSV.write(joinpath(csv_dir, "basiccombconv.csv"),
+    #     select(two_solver_conv, :solve_time, :time_impr, :iters, :iters_impr))
+    #
     # logged stats for instances
-    basic_df = filter(t -> (t.enhancement == "basic"), all_df)
+    # basic_df = filter(t -> (t.enhancement == "basic"), all_df)
+    # updated to treat "comb" instances like the baseline
+    basic_df = filter(t -> (t.enhancement == "comb"), all_df)
     CSV.write(joinpath(csv_dir, "inst_stats.csv"), select(basic_df,
         :num_cones => ByRow(log10) => :log_numcones,
         :npq => ByRow(log10) => :log_npq,
@@ -117,9 +121,9 @@ function post_process()
     make_agg_tables(all_df)
     make_subtime_tables(all_df)
 
-    for comp in compare_pairs, metric in [:solve_time, :iters]
-        make_perf_profiles(all_df, comp, metric)
-    end
+    # for comp in compare_pairs, metric in [:solve_time, :iters]
+    #     make_perf_profiles(all_df, comp, metric)
+    # end
     extra_stats(all_df)
 
     return
