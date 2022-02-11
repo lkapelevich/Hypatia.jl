@@ -26,6 +26,11 @@ default_options = (
     default_tol_relax = 10,
     iter_limit = 10000,
     time_limit = 10000,
+    #
+    # init_use_indirect = true,
+    # preprocess = false,
+    # syssolver = Solvers.SymIndefSparseSystemSolver{Float64}(),
+    # reduce = false,
     )
 
 # stepper option sets to run

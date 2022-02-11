@@ -432,12 +432,14 @@ function dder3(
     wiv_ξ_2 = -y / v * I + Wi * z_mat
     wiv_ξ_dot = real(dot(wiv_ξ_1, wiv_ξ_2'))
 
-    c1 = (2 * χ_1 * χ_2 / ζ - v * wiv_ξ_dot) / ζ^2
+    c1 = (2 * χ_1 * χ_2 / ζ - v * wiv_ξ_dot) / ζ
 
-    dder3[1] = -c1
-    τWvi = (-wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + wiv_ξ_1 * wiv_ξ_2 + wiv_ξ_2 * wiv_ξ_1) / ζ
-    dder3[2] = c1 * σ - real(tr(τWvi)) - 2 * q * y / v^3 + wiv_ξ_dot / ζ
-    dder3_W = c1 * v * Wi + τWvi * v * Wi - Wi * r_mat * Wi * z_mat * Wi - Wi * z_mat * Wi * r_mat * Wi
+    dder3[1] = -c1 / ζ
+    τWvi = -wiv_ξ_1 * ζ_χ_y - wiv_ξ_2 * ζ_χ_q + wiv_ξ_1 * wiv_ξ_2 + wiv_ξ_2 * wiv_ξ_1
+    dder3[2] = (c1 * σ - real(tr(τWvi)) + wiv_ξ_dot) / ζ - 2 * q * y / v^3
+    Wi3rz = Wi * r_mat * Wi * z_mat * Wi
+    Wi3rz += Wi3rz'
+    dder3_W = (c1 * I + τWvi) * v * Wi / ζ - Hermitian(Wi3rz)
     @views smat_to_svec!(dder3[3:end], dder3_W, cone.rt2)
     dder3 ./= 2
 
