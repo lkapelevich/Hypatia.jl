@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -37,7 +44,7 @@ mutable struct VectorCSqrCache{T <: Real} <: CSqrCache{T}
     VectorCSqrCache{T}() where {T <: Real} = new{T}()
 end
 
-function setup_csqr_cache(cone::EpiPerSepSpectral{VectorCSqr{T}}) where T
+function setup_csqr_cache(cone::EpiPerSepSpectral{VectorCSqr{T}}) where {T}
     cone.cache = cache = VectorCSqrCache{T}()
     d = cone.d
     cache.viw = zeros(T, d)
@@ -53,16 +60,13 @@ function setup_csqr_cache(cone::EpiPerSepSpectral{VectorCSqr{T}}) where T
     return
 end
 
-function set_initial_point!(
-    arr::AbstractVector,
-    cone::EpiPerSepSpectral{<:VectorCSqr},
-    )
+function set_initial_point!(arr::AbstractVector, cone::EpiPerSepSpectral{<:VectorCSqr})
     (arr[1], arr[2], w0) = get_initial_point(cone.d, cone.h)
     @views fill!(arr[3:end], w0)
     return arr
 end
 
-function update_feas(cone::EpiPerSepSpectral{VectorCSqr{T}}) where T
+function update_feas(cone::EpiPerSepSpectral{VectorCSqr{T}}) where {T}
     @assert !cone.feas_updated
     cache = cone.cache
     v = cone.point[2]
@@ -80,7 +84,7 @@ function update_feas(cone::EpiPerSepSpectral{VectorCSqr{T}}) where T
     return cone.is_feas
 end
 
-function is_dual_feas(cone::EpiPerSepSpectral{VectorCSqr{T}}) where T
+function is_dual_feas(cone::EpiPerSepSpectral{VectorCSqr{T}}) where {T}
     u = cone.dual_point[1]
     (u < eps(T)) && return false
     @views w = cone.dual_point[3:end]
@@ -116,7 +120,7 @@ function update_hess_aux(cone::EpiPerSepSpectral{<:VectorCSqr})
     cache = cone.cache
     cache.ζivi = inv(cache.ζ * cone.point[2])
     h_der2(cache.∇2h, cache.viw, cone.h)
-    cone.hess_aux_updated = true
+    return cone.hess_aux_updated = true
 end
 
 function update_hess(cone::EpiPerSepSpectral{<:VectorCSqr})
@@ -142,7 +146,7 @@ function update_hess(cone::EpiPerSepSpectral{<:VectorCSqr})
     # Hvv start
     Hvv = v^-2 + abs2(ζi * σ)
 
-    @inbounds for j in 1:cone.d
+    @inbounds for j in 1:(cone.d)
         ζi∇h_j = ζi * ∇h[j]
         ζi2∇h_j = ζi * ζi∇h_j
         ζivi∇2h_j = ζivi * ∇2h[j]
@@ -174,7 +178,7 @@ function hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::EpiPerSepSpectral{VectorCSqr{T}},
-    ) where T
+) where {T}
     cone.hess_aux_updated || update_hess_aux(cone)
     v = cone.point[2]
     w = cone.w_view
@@ -226,7 +230,7 @@ function update_inv_hess_aux(cone::EpiPerSepSpectral{<:VectorCSqr})
     cache.k2 = cache.σ + dot(∇h, γ)
     cache.k3 = (inv(v) + dot(wi, γ)) / v
 
-    cone.inv_hess_aux_updated = true
+    return cone.inv_hess_aux_updated = true
 end
 
 function update_inv_hess(cone::EpiPerSepSpectral{<:VectorCSqr})
@@ -246,7 +250,7 @@ function update_inv_hess(cone::EpiPerSepSpectral{<:VectorCSqr})
     Hi[1, 2] = k23i
     Hi[2, 2] = inv(k3)
 
-    @inbounds for j in 1:cone.d
+    @inbounds for j in 1:(cone.d)
         j2 = 2 + j
 
         # Hivw
@@ -270,7 +274,7 @@ function inv_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::EpiPerSepSpectral{VectorCSqr{T}},
-    ) where T
+) where {T}
     cone.inv_hess_aux_updated || update_inv_hess_aux(cone)
     cache = cone.cache
     m = cache.m
@@ -298,13 +302,10 @@ function update_dder3_aux(cone::EpiPerSepSpectral{<:VectorCSqr})
     @assert !cone.dder3_aux_updated
     cone.hess_aux_updated || update_hess_aux(cone)
     h_der3(cone.cache.∇3h, cone.cache.viw, cone.h)
-    cone.dder3_aux_updated = true
+    return cone.dder3_aux_updated = true
 end
 
-function dder3(
-    cone::EpiPerSepSpectral{VectorCSqr{T}},
-    dir::AbstractVector{T},
-    ) where T
+function dder3(cone::EpiPerSepSpectral{VectorCSqr{T}}, dir::AbstractVector{T}) where {T}
     cone.dder3_aux_updated || update_dder3_aux(cone)
     v = cone.point[2]
     w = cone.w_view

@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 estimate a covariance matrix that satisfies some given prior information and
 minimizes a given convex spectral function
 
@@ -62,7 +69,7 @@ function build(inst::CovarianceEstJuMP{T}) where {T <: Float64}
     return model
 end
 
-function test_extra(inst::CovarianceEstJuMP{T}, model::JuMP.Model) where T
+function test_extra(inst::CovarianceEstJuMP{T}, model::JuMP.Model) where {T}
     stat = JuMP.termination_status(model)
     @test stat == MOI.OPTIMAL
     (stat == MOI.OPTIMAL) || return
@@ -75,6 +82,6 @@ function test_extra(inst::CovarianceEstJuMP{T}, model::JuMP.Model) where T
     λ = eigvals(Hermitian(P_opt, :U))
     @test minimum(λ) >= -tol
     obj_result = get_val(pos_only(λ), inst.ext)
-    @test JuMP.objective_value(model) ≈ obj_result atol=tol rtol=tol
+    @test JuMP.objective_value(model) ≈ obj_result atol = tol rtol = tol
     return
 end

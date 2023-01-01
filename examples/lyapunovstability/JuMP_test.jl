@@ -1,3 +1,9 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
 
 relaxed_tols = (default_tol_relax = 1000,)
 insts = OrderedDict()
@@ -6,7 +12,7 @@ insts["minimal"] = [
     ((2, 4, true, false),),
     ((2, 2, false, true),),
     ((2, 2, false, false),),
-    ]
+]
 insts["fast"] = [
     ((3, 6, true, true),),
     ((3, 6, true, false),),
@@ -18,7 +24,7 @@ insts["fast"] = [
     ((15, 15, false, false),),
     ((30, 30, false, false),),
     ((30, 30, false, true),),
-    ]
+]
 insts["various"] = [
     ((6, 6, true, true), nothing, relaxed_tols),
     ((6, 6, true, false), nothing, relaxed_tols),
@@ -30,5 +36,5 @@ insts["various"] = [
     ((24, 24, true, true), nothing, relaxed_tols),
     ((24, 24, false, true), nothing, relaxed_tols),
     ((24, 24, false, false), nothing, relaxed_tols),
-    ]
+]
 return (LyapunovStabilityJuMP, insts)

@@ -1,3 +1,9 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
 
 insts = OrderedDict()
 insts["minimal"] = [
@@ -7,7 +13,7 @@ insts["minimal"] = [
     ((5, 4, 4, true, 0.1, 0, 0, 0, 0),),
     ((5, 3),),
     ((5, 3), :SOCExpPSD),
-    ]
+]
 insts["fast"] = [
     ((3, 4, 5, false, 0, 0, 0, 0, 0),),
     ((3, 4, 5, false, 0.1, 0.1, 0.1, 0.2, 0.2),),
@@ -21,7 +27,7 @@ insts["fast"] = [
     ((50, 8, 12, false, 0.1, 0.1, 0.1, 0.2, 0.2), :SOCExpPSD),
     ((15, 8, 12, true, 0.1, 0, 0, 0, 0),),
     ((15, 8, 8, true, 0, 0, 0.1, 0, 0), :SOCExpPSD),
-    ]
+]
 insts["various"] = [
     # ((3, 2, 80, true, 0.1, 0.1, 0.1, 0.2, 0.2), :SOCExpPSD),
     ((3, 2, 80, true, 0.1, 0.1, 0.1, 0.2, 0.2),),
@@ -34,5 +40,5 @@ insts["various"] = [
     # ((12, 8, 80, true, 0.1, 0.1, 0.1, 0.2, 0.2), :SOCExpPSD),
     ((12, 8, 80, true, 0.1, 0.1, 0.1, 0.2, 0.2),),
     ((12, 8, 80, false, 0.1, 0.1, 0.1, 0.2, 0.2),),
-    ]
+]
 return (MatrixRegressionJuMP, insts)

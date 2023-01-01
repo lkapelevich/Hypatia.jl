@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 linear system solver subroutines
 
 6x6 nonsymmetric system in (x, y, z, tau, s, kap):
@@ -15,8 +22,8 @@ mu/(taubar^2)*tau + kap = kaprhs
 function get_directions(
     stepper::Stepper{T},
     solver::Solver{T},
-    min_impr_tol::T = T(0.5) # improvement tolerance for iterative refinement
-    ) where {T <: Real}
+    min_impr_tol::T = T(0.5), # improvement tolerance for iterative refinement
+) where {T <: Real}
     rhs = stepper.rhs
     dir = stepper.dir
     dir_temp = stepper.dir_temp
@@ -76,10 +83,7 @@ function get_directions(
 end
 
 # calculate residual on 6x6 linear system
-function apply_lhs(
-    stepper::Stepper{T},
-    solver::Solver{T},
-    ) where {T <: Real}
+function apply_lhs(stepper::Stepper{T}, solver::Solver{T}) where {T <: Real}
     model = solver.model
     dir = stepper.dir
     res = stepper.temp
@@ -128,12 +132,15 @@ include("qrchol.jl")
 
 # reduce to 4x4 subsystem
 function solve_system(
-    syssolver::Union{NaiveElimSystemSolver{T}, SymIndefSystemSolver{T},
-        QRCholSystemSolver{T}},
+    syssolver::Union{
+        NaiveElimSystemSolver{T},
+        SymIndefSystemSolver{T},
+        QRCholSystemSolver{T},
+    },
     solver::Solver{T},
     sol::Point{T},
     rhs::Point{T},
-    ) where {T <: Real}
+) where {T <: Real}
     model = solver.model
 
     solve_subsystem4(syssolver, solver, sol, rhs)
@@ -157,7 +164,7 @@ function solve_subsystem4(
     solver::Solver{T},
     sol::Point{T},
     rhs::Point{T},
-    ) where {T <: Real}
+) where {T <: Real}
     model = solver.model
     rhs_sub = syssolver.rhs_sub
     sol_sub = syssolver.sol_sub
@@ -185,7 +192,7 @@ end
 function setup_point_sub(
     syssolver::Union{QRCholSystemSolver{T}, SymIndefSystemSolver{T}},
     model::Models.Model{T},
-    ) where {T <: Real}
+) where {T <: Real}
     (n, p, q) = (model.n, model.p, model.q)
     sol_sub = syssolver.sol_sub = Point{T}()
     rhs_sub = syssolver.rhs_sub = Point{T}()
@@ -205,7 +212,7 @@ end
 function set_point_sub_rhs(
     syssolver::Union{QRCholSystemSolver{T}, SymIndefSystemSolver{T}},
     model::Models.Model{T},
-    ) where {T <: Real}
+) where {T <: Real}
     rhs_const = syssolver.rhs_const
     @. rhs_const.x = -model.c
     @. rhs_const.y = model.b
@@ -213,5 +220,6 @@ function set_point_sub_rhs(
     return
 end
 
-dot_obj(model::Models.Model, point::Point) = dot(model.c, point.x) +
-    dot(model.b, point.y) + dot(model.h, point.z)
+function dot_obj(model::Models.Model, point::Point)
+    return dot(model.c, point.x) + dot(model.b, point.y) + dot(model.h, point.z)
+end

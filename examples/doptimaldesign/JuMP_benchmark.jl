@@ -1,8 +1,16 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
 
-doptimaldesign_insts(use_logdet::Bool) = [
-    [(q, 2q, 2q, 5, use_logdet, !use_logdet, false)
-    for q in vcat(3, 50:50:200, 300:100:1000)] # includes compile run
-    ]
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+function doptimaldesign_insts(use_logdet::Bool)
+    return [[
+        (q, 2q, 2q, 5, use_logdet, !use_logdet, false) for
+        q in vcat(3, 50:50:200, 300:100:1000)
+    ]]
+end
 
 insts = OrderedDict()
 rootdet_insts = doptimaldesign_insts(false)

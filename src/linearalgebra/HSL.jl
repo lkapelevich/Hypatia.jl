@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 utilities for HSL
 only works with Float64 and Float32
 =#
@@ -19,8 +26,8 @@ int_type(::HSLSymCache) = Int
 
 function update_fact(
     cache::HSLSymCache{T},
-    A::SparseMatrixCSC{T, Int}
-    ) where {T <: BlasReal}
+    A::SparseMatrixCSC{T, Int},
+) where {T <: BlasReal}
     if !cache.analyzed
         cache.ma57 = HSL.Ma57(A)
         cache.analyzed = true
@@ -36,7 +43,7 @@ function inv_prod(
     x::Vector{T},
     A::SparseMatrixCSC{T, Int},
     b::Vector{T},
-    ) where {T <: BlasReal}
+) where {T <: BlasReal}
     # MA57 only has the option to take iterative refinement steps for a single-column RHS
     ma57 = cache.ma57
     copyto!(x, b)

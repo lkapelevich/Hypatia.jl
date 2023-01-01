@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -18,8 +25,8 @@ in svec format. Note all diagonal elements must be present.
 
     $(FUNCTIONNAME){T, R}(side::Int, rows::Vector{Int}, cols::Vector{Int}, use_dual::Bool = false)
 """
-mutable struct PosSemidefTriSparse{I <: PSDSparseImpl, T <: Real,
-    R <: RealOrComplex{T}} <: Cone{T}
+mutable struct PosSemidefTriSparse{I <: PSDSparseImpl, T <: Real, R <: RealOrComplex{T}} <:
+               Cone{T}
     use_dual_barrier::Bool
     dim::Int
     side::Int
@@ -54,7 +61,7 @@ mutable struct PosSemidefTriSparse{I <: PSDSparseImpl, T <: Real,
         row_idxs::Vector{Int},
         col_idxs::Vector{Int};
         use_dual::Bool = false,
-        ) where {I <: PSDSparseImpl, T <: Real, R <: RealOrComplex{T}}
+    ) where {I <: PSDSparseImpl, T <: Real, R <: RealOrComplex{T}}
         # check validity of inputs
         num_nz = length(row_idxs)
         @assert length(col_idxs) == num_nz
@@ -86,9 +93,17 @@ mutable struct PosSemidefTriSparse{I <: PSDSparseImpl, T <: Real,
     end
 end
 
-reset_data(cone::PosSemidefTriSparse) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = cone.hess_fact_updated =
-    cone.use_hess_prod_slow = cone.use_hess_prod_slow_updated = false)
+function reset_data(cone::PosSemidefTriSparse)
+    return (
+        cone.feas_updated =
+            cone.grad_updated =
+                cone.hess_updated =
+                    cone.inv_hess_updated =
+                        cone.hess_fact_updated =
+                            cone.use_hess_prod_slow =
+                                cone.use_hess_prod_slow_updated = false
+    )
+end
 
 get_nu(cone::PosSemidefTriSparse) = cone.side
 
@@ -112,11 +127,9 @@ include("denseimpl.jl")
 # see https://github.com/JuliaLang/julia/pull/40560
 if VERSION >= v"1.7.0-DEV.1025"
     include("cholmodimpl.jl")
-    const PSDSparseImplList = [
-        (PSDSparseDense, Real),
-        (PSDSparseCholmod, LinearAlgebra.BlasReal),
-        ]
+    const PSDSparseImplList =
+        [(PSDSparseDense, Real), (PSDSparseCholmod, LinearAlgebra.BlasReal)]
 else
     const PSDSparseCholmod = PSDSparseDense
-    const PSDSparseImplList = [(PSDSparseDense, Real),]
+    const PSDSparseImplList = [(PSDSparseDense, Real)]
 end

@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 compute the capacity of a classical-quantum channel
 adapted from https://github.com/hfawzi/cvxquad/blob/master/examples/cq_channel_capacity.m
 and listing 1 in "Efficient optimization of the quantum relative entropy" by H. Fawzi and O. Fawzi
@@ -47,7 +54,7 @@ function build(inst::ClassicalQuantum{T}) where {T <: Float64}
     return model
 end
 
-function test_extra(inst::ClassicalQuantum{T}, model::JuMP.Model) where T
+function test_extra(inst::ClassicalQuantum{T}, model::JuMP.Model) where {T}
     stat = JuMP.termination_status(model)
     @test stat == MOI.OPTIMAL
     (stat == MOI.OPTIMAL) || return
@@ -60,6 +67,6 @@ function test_extra(inst::ClassicalQuantum{T}, model::JuMP.Model) where T
     λ = eigvals(Hermitian(Entr_opt, :U))
     @test minimum(λ) >= -tol
     qe_result = get_val(pos_only(λ), MatNegEntropy())
-    @test epi_opt ≈ qe_result atol=tol rtol=tol
+    @test epi_opt ≈ qe_result atol = tol rtol = tol
     return
 end

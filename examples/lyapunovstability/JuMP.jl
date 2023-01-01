@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 problem 1 (linear_dynamics = true)
 eigenvalue problem related to Lyapunov stability example from sec 2.2.2, 6.3.2
 "Linear Matrix Inequalities in System and Control Theory" by
@@ -48,20 +55,20 @@ function build(inst::LyapunovStabilityJuMP{T}) where {T <: Float64}
         gamma = 0.01
         JuMP.@variable(model, P[1:num_rows, 1:num_rows], Symmetric)
         JuMP.@constraint(model, Symmetric(P - I) in JuMP.PSDCone())
-        U = -A' * P - P * A - alpha * P - (t * gamma ^ 2) .*
-            Matrix(I, num_rows, num_rows)
+        U = -A' * P - P * A - alpha * P - (t * gamma^2) .* Matrix(I, num_rows, num_rows)
         W = -P
     end
 
     if inst.use_matrixepipersquare
-        U_svec = Cones.smat_to_svec!(zeros(eltype(U),
-            Cones.svec_length(num_rows)), U, sqrt(2))
+        U_svec =
+            Cones.smat_to_svec!(zeros(eltype(U), Cones.svec_length(num_rows)), U, sqrt(2))
         coneT = Hypatia.MatrixEpiPerSquareCone{T, T}
-        JuMP.@constraint(model, vcat(U_svec, t / 2, vec(W)) in
-            coneT(num_rows, num_cols))
+        JuMP.@constraint(model, vcat(U_svec, t / 2, vec(W)) in coneT(num_rows, num_cols))
     else
-        JuMP.@constraint(model, Symmetric(
-            [t .* Matrix(I, num_cols, num_cols) W'; W U]) in JuMP.PSDCone())
+        JuMP.@constraint(
+            model,
+            Symmetric([t.*Matrix(I, num_cols, num_cols) W'; W U]) in JuMP.PSDCone()
+        )
     end
 
     return model

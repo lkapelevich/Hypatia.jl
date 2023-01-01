@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 portfolio rebalancing problem
 =#
 
@@ -25,14 +32,17 @@ function build(inst::PortfolioJuMP{T}) where {T <: Float64}
     JuMP.@constraint(model, A * invest .== 0)
 
     if inst.epinormeucl_constr
-        JuMP.@constraint(model, vcat(gamma / sqrt(num_stocks),
-            sigma_half * invest) in JuMP.SecondOrderCone())
+        JuMP.@constraint(
+            model,
+            vcat(gamma / sqrt(num_stocks), sigma_half * invest) in JuMP.SecondOrderCone()
+        )
     end
     if inst.epinorminf_constrs
-        JuMP.@constraint(model, vcat(1, invest) in
-            MOI.NormInfinityCone(1 + num_stocks))
-        JuMP.@constraint(model, vcat(gamma, sigma_half * invest) in
-            MOI.NormOneCone(1 + num_stocks))
+        JuMP.@constraint(model, vcat(1, invest) in MOI.NormInfinityCone(1 + num_stocks))
+        JuMP.@constraint(
+            model,
+            vcat(gamma, sigma_half * invest) in MOI.NormOneCone(1 + num_stocks)
+        )
     end
 
     return model

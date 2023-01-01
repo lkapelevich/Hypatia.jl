@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -40,10 +47,7 @@ mutable struct HypoPerLog{T <: Real} <: Cone{T}
     dual_ϕ::T
     tempw::Vector{T}
 
-    function HypoPerLog{T}(
-        dim::Int;
-        use_dual::Bool = false,
-        ) where {T <: Real}
+    function HypoPerLog{T}(dim::Int; use_dual::Bool = false) where {T <: Real}
         @assert dim >= 3
         cone = new{T}()
         cone.use_dual_barrier = use_dual
@@ -181,11 +185,7 @@ function update_hess(cone::HypoPerLog)
     return cone.hess
 end
 
-function hess_prod!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::HypoPerLog,
-    )
+function hess_prod!(prod::AbstractVecOrMat, arr::AbstractVecOrMat, cone::HypoPerLog)
     v = cone.point[2]
     @views w = cone.point[3:end]
     d = length(w)
@@ -253,11 +253,7 @@ function update_inv_hess(cone::HypoPerLog)
     return cone.inv_hess
 end
 
-function inv_hess_prod!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::HypoPerLog,
-    )
+function inv_hess_prod!(prod::AbstractVecOrMat, arr::AbstractVecOrMat, cone::HypoPerLog)
     @assert cone.grad_updated
     v = cone.point[2]
     @views w = cone.point[3:end]
@@ -386,7 +382,7 @@ function get_central_ray_hypoperlog(d::Int)
     # use nonlinear fit for higher dimensions
     x = inv(d)
     if d <= 70
-        u = 4.657876 * x ^ 2 - 3.116192 * x + 0.000647
+        u = 4.657876 * x^2 - 3.116192 * x + 0.000647
         v = 0.424682 * x + 0.553392
         w = 0.760412 * x + 1.001795
     else
@@ -398,14 +394,14 @@ function get_central_ray_hypoperlog(d::Int)
 end
 
 const central_rays_hypoperlog = [
-    -0.827838387  0.805102007  1.290927686
-    -0.689607388  0.724605082  1.224617936
-    -0.584372665  0.68128058  1.182421942
-    -0.503499342  0.65448622  1.153053152
-    -0.440285893  0.636444224  1.131466926
-    -0.389979809  0.623569352  1.114979519
-    -0.349255921  0.613978276  1.102013921
-    -0.315769104  0.606589839  1.091577908
-    -0.287837744  0.600745284  1.083013
-    -0.264242734  0.596019009  1.075868782
-    ]
+    -0.827838387 0.805102007 1.290927686
+    -0.689607388 0.724605082 1.224617936
+    -0.584372665 0.68128058 1.182421942
+    -0.503499342 0.65448622 1.153053152
+    -0.440285893 0.636444224 1.131466926
+    -0.389979809 0.623569352 1.114979519
+    -0.349255921 0.613978276 1.102013921
+    -0.315769104 0.606589839 1.091577908
+    -0.287837744 0.600745284 1.083013
+    -0.264242734 0.596019009 1.075868782
+]

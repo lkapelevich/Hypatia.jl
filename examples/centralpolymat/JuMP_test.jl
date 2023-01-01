@@ -1,3 +1,9 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
 
 relaxed_tols = (default_tol_relax = 100,)
 insts = OrderedDict()
@@ -18,7 +24,7 @@ insts["minimal"] = [
     # tr power12conj (domain not positive)
     ((1, 2, MatPower12Conj(1.7)),),
     ((1, 2, MatPower12ConjEigOrd(1.7)),),
-    ]
+]
 insts["fast"] = [
     ((1, 10, MatNegRtdetEFExp()),),
     ((1, 15, MatNegRtdet()),),
@@ -40,7 +46,7 @@ insts["fast"] = [
     ((7, 2, MatNegLog()),),
     ((7, 2, MatPower12(1.5)),),
     ((7, 2, MatNegPower01(0.7)),),
-    ]
+]
 insts["various"] = [
     ((2, 5, MatNegSqrtEigOrd()),),
     ((2, 5, MatNegLogEigOrd()),),
@@ -65,5 +71,5 @@ insts["various"] = [
     ((5, 3, MatNegLogDirect()),),
     ((6, 3, MatNegRtdet()),),
     ((6, 3, MatNegSqrt()),),
-    ]
+]
 return (CentralPolyMatJuMP, insts)

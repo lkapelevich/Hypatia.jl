@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 run examples tests from the examples folder
 =#
 
@@ -20,7 +27,7 @@ default_options = (
     # stepper = Solvers.PredOrCentStepper{Float64}(),
     stepper = Solvers.SymmStepper{Float64}(),
     iter_limit = 250,
-    )
+)
 
 # instance sets and real types to run and corresponding time limits (seconds)
 inst_sets = [
@@ -34,30 +41,36 @@ inst_sets = [
 perf = Examples.setup_benchmark_dataframe()
 
 @testset "examples tests" begin
-test_insts = Examples.get_test_instances()
+    test_insts = Examples.get_test_instances()
 
-@testset "$mod, $ex" for (mod, mod_insts) in test_insts,
-    (ex, (ex_type, ex_insts)) in mod_insts
-@testset "$inst_set, $T, $time_limit" for (inst_set, T, time_limit) in inst_sets
-    haskey(ex_insts, inst_set) || continue
-    inst_subset = ex_insts[inst_set]
-    isempty(inst_subset) && continue
+    @testset "$mod, $ex" for (mod, mod_insts) in test_insts,
+        (ex, (ex_type, ex_insts)) in mod_insts
 
-    info_perf = (; inst_set, :real_T => T, :example => ex, :model_type => mod)
-    new_default_options = (; default_options..., time_limit = time_limit)
-    ex_type_T = ex_type{T}
+        @testset "$inst_set, $T, $time_limit" for (inst_set, T, time_limit) in inst_sets
+            haskey(ex_insts, inst_set) || continue
+            inst_subset = ex_insts[inst_set]
+            isempty(inst_subset) && continue
 
-    str = "$mod $ex $T $inst_set"
-    println("\nstarting $str tests")
-    @testset "$str" begin
-        Examples.run_instance_set(inst_subset, ex_type_T, info_perf,
-            new_default_options, script_verbose, perf)
+            info_perf = (; inst_set, :real_T => T, :example => ex, :model_type => mod)
+            new_default_options = (; default_options..., time_limit = time_limit)
+            ex_type_T = ex_type{T}
+
+            str = "$mod $ex $T $inst_set"
+            println("\nstarting $str tests")
+            @testset "$str" begin
+                Examples.run_instance_set(
+                    inst_subset,
+                    ex_type_T,
+                    info_perf,
+                    new_default_options,
+                    script_verbose,
+                    perf,
+                )
+            end
+        end
     end
-end
-end
 
-# println("\n")
-# DataFrames.show(perf, allrows = true, allcols = true)
-# println("\n")
-end
-;
+    # println("\n")
+    # DataFrames.show(perf, allrows = true, allcols = true)
+    # println("\n")
+end;

@@ -1,3 +1,9 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
 
 insts = OrderedDict()
 insts["minimal"] = [
@@ -7,7 +13,7 @@ insts["minimal"] = [
     ((5, 1, 2, true, false, true), (default_tol_relax = 100,)),
     ((5, 1, 2, true, true, false),),
     ((:iris, 2, true, true, true),),
-    ]
+]
 insts["fast"] = [
     ((50, 1, 4, true, true, true),),
     ((50, 1, 10, true, true, true),),

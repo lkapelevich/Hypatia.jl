@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -63,7 +70,7 @@ mutable struct WSOSInterpEpiNormEucl{T <: Real} <: Cone{T}
         U::Int,
         Ps::Vector{Matrix{T}};
         use_dual::Bool = false,
-        ) where {T <: Real}
+    ) where {T <: Real}
         for Pj in Ps
             @assert size(Pj, 1) == U
         end
@@ -103,8 +110,10 @@ function setup_extra_data!(cone::WSOSInterpEpiNormEucl{T}) where {T <: Real}
     cone.PΛiPs = [zeros(T, R * U, R * U) for _ in eachindex(Ls)]
     cone.Λ11LiP = [zeros(T, L, U) for L in Ls]
     cone.PΛ11iP = [zeros(T, U, U) for _ in eachindex(Ps)]
-    cone.PΛiP_blocks_U = [[view(PΛiPk, block_idxs(U, r), block_idxs(U, s))
-        for r in 1:R, s in 1:R] for PΛiPk in cone.PΛiPs]
+    cone.PΛiP_blocks_U = [
+        [view(PΛiPk, block_idxs(U, r), block_idxs(U, s)) for r in 1:R, s in 1:R] for
+        PΛiPk in cone.PΛiPs
+    ]
     cone.Λfact = Vector{Any}(undef, K)
     cone.point_views = [view(cone.point, block_idxs(U, i)) for i in 1:R]
     cone.Ps_times = zeros(K)
@@ -113,7 +122,7 @@ function setup_extra_data!(cone::WSOSInterpEpiNormEucl{T}) where {T <: Real}
 end
 
 function set_initial_point!(arr::AbstractVector, cone::WSOSInterpEpiNormEucl)
-    @views arr[1:cone.U] .= 1
+    @views arr[1:(cone.U)] .= 1
     @views arr[(cone.U + 1):end] .= 0
     return arr
 end
@@ -171,7 +180,7 @@ end
 
 function is_dual_feas(cone::WSOSInterpEpiNormEucl{T}) where {T}
     # condition is necessary but not sufficient for dual feasibility
-    @views p1 = cone.dual_point[1:cone.U]
+    @views p1 = cone.dual_point[1:(cone.U)]
     return all(>(eps(T)), p1)
 end
 
@@ -290,7 +299,7 @@ function update_hess(cone::WSOSInterpEpiNormEucl)
             end
         end
     end
-    @. @views H[:, (U + 1):cone.dim] *= 2
+    @. @views H[:, (U + 1):(cone.dim)] *= 2
 
     cone.hess_updated = true
     return cone.hess
@@ -338,23 +347,25 @@ function dder3(cone::WSOSInterpEpiNormEucl, dir::AbstractVector)
         @views scaled_diag = mul!(cone.tempLU[k], Λ11LiP, Diagonal(dir[1:U]))
         @views scaled_pt = mul!(cone.tempLU2[k], matLiP, Diagonal(dir[1:U]))
         @views for r in 2:R
-            mul!(scaled_pt, ΛLiP_edge[r - 1], Diagonal(dir[block_idxs(U, r)]),
-                true, true)
+            mul!(scaled_pt, ΛLiP_edge[r - 1], Diagonal(dir[block_idxs(U, r)]), true, true)
             mul!(scaled_row[r - 1], matLiP, Diagonal(dir[block_idxs(U, r)]))
-            mul!(scaled_row[r - 1], ΛLiP_edge[r - 1], Diagonal(dir[1:U]),
-                true, true)
+            mul!(scaled_row[r - 1], ΛLiP_edge[r - 1], Diagonal(dir[1:U]), true, true)
             mul!(scaled_col[r - 1], Λ11LiP, Diagonal(dir[block_idxs(U, r)]))
         end
 
         # ΛLiP is half an arrow, multiplying arrow by its transpose gives arrow
         @views mul!(ΛLiP_D_ΛLiPt_col[1:L, :], scaled_pt, matLiP')
         @views for r in 2:R
-            mul!(ΛLiP_D_ΛLiPt_col[1:L, :], scaled_row[r - 1], ΛLiP_edge[r - 1]',
-                true, true)
+            mul!(ΛLiP_D_ΛLiPt_col[1:L, :], scaled_row[r - 1], ΛLiP_edge[r - 1]', true, true)
             mul!(ΛLiP_D_ΛLiPt_row[r - 1], scaled_row[r - 1], Λ11LiP')
             mul!(ΛLiP_D_ΛLiPt_col[block_idxs(L, r), :], scaled_col[r - 1], matLiP')
-            mul!(ΛLiP_D_ΛLiPt_col[block_idxs(L, r), :], scaled_diag,
-                ΛLiP_edge[r - 1]', true, true)
+            mul!(
+                ΛLiP_D_ΛLiPt_col[block_idxs(L, r), :],
+                scaled_diag,
+                ΛLiP_edge[r - 1]',
+                true,
+                true,
+            )
             mul!(ΛLiP_D_ΛLiPt_diag, scaled_diag, Λ11LiP')
         end
 
@@ -367,10 +378,20 @@ function dder3(cone::WSOSInterpEpiNormEucl, dir::AbstractVector)
         # multiply by ΛLiP
         mul!(dder3_half, ΛLiP_D_ΛLiPt_col, ΛLiP_edge_ctgs)
         @views for r in 2:R
-            mul!(dder3_half[1:L, block_idxs(U, r)], ΛLiP_D_ΛLiPt_row[r - 1],
-                Λ11LiP, true, true)
-            mul!(dder3_half[block_idxs(L, r), block_idxs(U, r)], ΛLiP_D_ΛLiPt_diag,
-                Λ11LiP, true, true)
+            mul!(
+                dder3_half[1:L, block_idxs(U, r)],
+                ΛLiP_D_ΛLiPt_row[r - 1],
+                Λ11LiP,
+                true,
+                true,
+            )
+            mul!(
+                dder3_half[block_idxs(L, r), block_idxs(U, r)],
+                ΛLiP_D_ΛLiPt_diag,
+                Λ11LiP,
+                true,
+                true,
+            )
         end
 
         @views for u in 1:U
@@ -382,7 +403,6 @@ function dder3(cone::WSOSInterpEpiNormEucl, dir::AbstractVector)
                 idx += U
             end
         end
-
     end
 
     return dder3

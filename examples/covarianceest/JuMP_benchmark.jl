@@ -1,8 +1,12 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
 
-covarianceest_insts(ext::MatSpecExt) = [
-    [(d, true, ext) # complex
-    for d in vcat(3, 25:25:250)] # includes compile run
-    ]
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+covarianceest_insts(ext::MatSpecExt) = [[(d, true, ext) # complex
+                                         for d in vcat(3, 25:25:250)]]
 
 insts = OrderedDict()
 insts["logdet"] = (nothing, covarianceest_insts(MatLogdetCone()))

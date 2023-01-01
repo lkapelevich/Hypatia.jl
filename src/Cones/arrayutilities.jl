@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 utilities for arrays
 =#
 
@@ -17,10 +24,7 @@ $(SIGNATURES)
 
 Copy a vector in-place.
 """
-vec_copyto!(
-    v1::AbstractVecOrMat{T},
-    v2::AbstractVecOrMat{T},
-    ) where T = copyto!(v1, v2)
+vec_copyto!(v1::AbstractVecOrMat{T}, v2::AbstractVecOrMat{T}) where {T} = copyto!(v1, v2)
 
 """
 $(SIGNATURES)
@@ -30,7 +34,7 @@ Copy a complex vector to a real vector in-place.
 function vec_copyto!(
     rvec::AbstractVecOrMat{T},
     cvec::AbstractVecOrMat{Complex{T}},
-    ) where T
+) where {T}
     @assert length(rvec) == 2 * length(cvec)
     k = 1
     @inbounds for i in eachindex(cvec)
@@ -50,7 +54,7 @@ Copy a real vector to a complex vector in-place.
 function vec_copyto!(
     cvec::AbstractVecOrMat{Complex{T}},
     rvec::AbstractVecOrMat{T},
-    ) where T
+) where {T}
     @assert length(rvec) == 2 * length(cvec)
     k = 1
     @inbounds for i in eachindex(cvec)
@@ -133,11 +137,7 @@ $(SIGNATURES)
 Rescale the elements corresponding to off-diagonals in `arr::AbstractVecOrMat`,
 with scaling `scal::Real` and default block increment `incr::Int = 1`.
 """
-function scale_svec!(
-    arr::AbstractVecOrMat,
-    scal::Real;
-    incr::Int = 1,
-    )
+function scale_svec!(arr::AbstractVecOrMat, scal::Real; incr::Int = 1)
     @assert incr > 0
     n = size(arr, 1)
     (d, r) = divrem(n, incr)
@@ -160,11 +160,7 @@ $(SIGNATURES)
 
 Copy a real symmetric matrix upper triangle to a svec-scaled vector in-place.
 """
-function smat_to_svec!(
-    vec::AbstractVector{T},
-    mat::AbstractMatrix{T},
-    rt2::Real,
-    ) where T
+function smat_to_svec!(vec::AbstractVector{T}, mat::AbstractMatrix{T}, rt2::Real) where {T}
     k = 1
     m = size(mat, 1)
     @assert m == size(mat, 2)
@@ -190,7 +186,7 @@ function smat_to_svec!(
     vec::AbstractVector{T},
     mat::AbstractMatrix{Complex{T}},
     rt2::Real,
-    ) where T
+) where {T}
     k = 1
     m = size(mat, 1)
     @assert m == size(mat, 2)
@@ -215,11 +211,7 @@ $(SIGNATURES)
 
 Copy a svec-scaled vector to a real symmetric matrix upper triangle in-place.
 """
-function svec_to_smat!(
-    mat::AbstractMatrix{T},
-    vec::AbstractVector{T},
-    rt2::Real,
-    ) where T
+function svec_to_smat!(mat::AbstractMatrix{T}, vec::AbstractVector{T}, rt2::Real) where {T}
     k = 1
     m = size(mat, 1)
     @assert m == size(mat, 2)
@@ -245,7 +237,7 @@ function svec_to_smat!(
     mat::AbstractMatrix{Complex{T}},
     vec::AbstractVector{T},
     rt2::Real,
-    ) where T
+) where {T}
     k = 1
     m = size(mat, 1)
     @assert m == size(mat, 2)
@@ -269,7 +261,7 @@ function symm_kron!(
     skr::AbstractMatrix{T},
     mat::AbstractMatrix{T},
     rt2::T,
-    ) where {T <: Real}
+) where {T <: Real}
     side = size(mat, 1)
 
     col_idx = 1
@@ -278,8 +270,7 @@ function symm_kron!(
             row_idx = 1
             for j in 1:side
                 for i in 1:(j - 1)
-                    skr[row_idx, col_idx] =
-                        mat[i, k] * mat[j, l] + mat[i, l] * mat[j, k]
+                    skr[row_idx, col_idx] = mat[i, k] * mat[j, l] + mat[i, l] * mat[j, k]
                     row_idx += 1
                 end
                 skr[row_idx, col_idx] = rt2 * mat[j, k] * mat[j, l]
@@ -310,7 +301,7 @@ function symm_kron!(
     skr::AbstractMatrix{T},
     mat::AbstractMatrix{Complex{T}},
     rt2::T,
-    ) where {T <: Real}
+) where {T <: Real}
     side = size(mat, 1)
 
     col_idx = 1
@@ -361,13 +352,13 @@ function eig_dot_kron!(
     temp2::Matrix{R},
     V::Matrix{R},
     rt2::T,
-    ) where {T <: Real, R <: RealOrComplex{T}}
+) where {T <: Real, R <: RealOrComplex{T}}
     @assert issymmetric(inner) # must be symmetric (wrapper is less efficient)
     rt2i = inv(rt2)
     d = size(inner, 1)
     copyto!(V, vecs') # allows fast column slices
     V_views = [view(V, :, i) for i in 1:size(inner, 1)]
-    scals = (R <: Complex{T} ? [rt2i, rt2i * im] : [rt2i,]) # real and imag parts
+    scals = (R <: Complex{T} ? [rt2i, rt2i * im] : [rt2i]) # real and imag parts
 
     col_idx = 1
     @inbounds for (j, V_j) in enumerate(V_views)
@@ -398,7 +389,7 @@ function spectral_kron_element!(
     j::Int,
     a::T,
     b::T,
-    ) where {T <: Real}
+) where {T <: Real}
     @inbounds skr[i, j] = a + b
     return skr
 end
@@ -410,7 +401,7 @@ function spectral_kron_element!(
     j::Int,
     a::Complex{T},
     b::Complex{T},
-    ) where {T <: Real}
+) where {T <: Real}
     apb = a + b
     amb = a - b
     @inbounds begin

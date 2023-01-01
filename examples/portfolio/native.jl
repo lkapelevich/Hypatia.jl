@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 maximize expected returns subject to risk constraints
 
 TODO
@@ -39,7 +46,7 @@ function build(inst::PortfolioNative{T}) where {T <: Real}
         h_risk = vcat(gamma_new, zeros(T, num_stocks))
         h = vcat(h, h_risk)
         push!(cones, cone)
-        cone_offset += num_stocks + 1
+        return cone_offset += num_stocks + 1
     end
 
     if inst.epinormeucl_constr
@@ -48,26 +55,32 @@ function build(inst::PortfolioNative{T}) where {T <: Real}
 
     if inst.epinorminf_constrs
         if inst.use_epinorminf
-            add_ball_constr(Cones.EpiNormInf{T, T}(num_stocks + 1,
-                use_dual = true), gamma * sqrt(T(num_stocks)))
+            add_ball_constr(
+                Cones.EpiNormInf{T, T}(num_stocks + 1, use_dual = true),
+                gamma * sqrt(T(num_stocks)),
+            )
             add_ball_constr(Cones.EpiNormInf{T, T}(num_stocks + 1), gamma)
         else
             c = vcat(c, zeros(T, 2 * num_stocks))
             A = [
-                A    spzeros(T, 1, 2 * num_stocks);
-                sigma_half    -I    I;
-                ]
+                A spzeros(T, 1, 2 * num_stocks)
+                sigma_half -I I
+            ]
             padding = spzeros(T, num_stocks, 2 * num_stocks)
             G = [
-                G    spzeros(T, size(G, 1), 2 * num_stocks);
-                spzeros(T, 2 * num_stocks, num_stocks)    -I;
-                spzeros(T, 1, num_stocks)    ones(T, 1, 2 * num_stocks);
-                sigma_half    padding;
-                -sigma_half    padding;
-                ]
+                G spzeros(T, size(G, 1), 2 * num_stocks)
+                spzeros(T, 2 * num_stocks, num_stocks) -I
+                spzeros(T, 1, num_stocks) ones(T, 1, 2 * num_stocks)
+                sigma_half padding
+                -sigma_half padding
+            ]
             b = vcat(b, zeros(T, num_stocks))
-            h = vcat(h, zeros(T, 2 * num_stocks), gamma * sqrt(T(num_stocks)),
-                gamma * ones(T, 2 * num_stocks))
+            h = vcat(
+                h,
+                zeros(T, 2 * num_stocks),
+                gamma * sqrt(T(num_stocks)),
+                gamma * ones(T, 2 * num_stocks),
+            )
             push!(cones, Cones.Nonnegative{T}(4 * num_stocks + 1))
             cone_offset += 4 * num_stocks + 1
         end

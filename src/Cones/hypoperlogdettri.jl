@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -56,7 +63,7 @@ mutable struct HypoPerLogdetTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     function HypoPerLogdetTri{T, R}(
         dim::Int;
         use_dual::Bool = false,
-        ) where {T <: Real, R <: RealOrComplex{T}}
+    ) where {T <: Real, R <: RealOrComplex{T}}
         @assert dim >= 3
         cone = new{T, R}()
         cone.use_dual_barrier = use_dual
@@ -77,7 +84,7 @@ reset_data(cone::HypoPerLogdetTri) = (cone.feas_updated = cone.grad_updated =
 
 function setup_extra_data!(
     cone::HypoPerLogdetTri{T, R},
-    ) where {T <: Real, R <: RealOrComplex{T}}
+) where {T <: Real, R <: RealOrComplex{T}}
     dim = cone.dim
     d = cone.d
     cone.mat = zeros(R, d, d)
@@ -98,13 +105,13 @@ use_sqrt_scal_hess_oracles(::Int, cone::HypoPerLogdetTri) = false
 function set_initial_point!(
     arr::AbstractVector{T},
     cone::HypoPerLogdetTri{T, R},
-    ) where {T <: Real, R <: RealOrComplex{T}}
+) where {T <: Real, R <: RealOrComplex{T}}
     arr .= 0
     # central point data are the same as for hypoperlog
     (arr[1], arr[2], w) = get_central_ray_hypoperlog(cone.d)
     incr = (cone.is_complex ? 2 : 1)
     k = 3
-    @inbounds for i in 1:cone.d
+    @inbounds for i in 1:(cone.d)
         arr[k] = w
         k += incr * i + 1
     end
@@ -230,11 +237,7 @@ function update_hess(cone::HypoPerLogdetTri)
     return cone.hess
 end
 
-function hess_prod!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::HypoPerLogdetTri,
-    )
+function hess_prod!(prod::AbstractVecOrMat, arr::AbstractVecOrMat, cone::HypoPerLogdetTri)
     @assert cone.grad_updated
     v = cone.point[2]
     FU = cone.fact_W.U
@@ -313,7 +316,7 @@ function inv_hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,
     cone::HypoPerLogdetTri,
-    )
+)
     @assert cone.grad_updated
     v = cone.point[2]
     @views w = cone.point[3:end]

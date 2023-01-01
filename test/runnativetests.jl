@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 run native instance tests from test/nativeinstances.jl and display basic benchmarks
 =#
 
@@ -34,7 +41,7 @@ function test_instance_solver(
     T::Type{<:Real},
     options::NamedTuple,
     test_info::String = "",
-    )
+)
     test_info = "$inst_name $T $test_info"
     @testset "$test_info" begin
         println(test_info, " ...")

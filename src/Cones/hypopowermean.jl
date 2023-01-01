@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -42,10 +49,7 @@ mutable struct HypoPowerMean{T <: Real} <: Cone{T}
     tempw1::Vector{T}
     tempw2::Vector{T}
 
-    function HypoPowerMean{T}(
-        α::Vector{T};
-        use_dual::Bool = false,
-        ) where {T <: Real}
+    function HypoPowerMean{T}(α::Vector{T}; use_dual::Bool = false) where {T <: Real}
         dim = length(α) + 1
         @assert dim >= 2
         @assert all(ai > 0 for ai in α)
@@ -78,7 +82,7 @@ use_sqrt_scal_hess_oracles(::Int, cone::HypoPowerMean) = false
 function set_initial_point!(
     arr::AbstractVector{T},
     cone::HypoPowerMean{T},
-    ) where {T <: Real}
+) where {T <: Real}
     # get closed form central ray if all powers are equal, else use fitting
     d = cone.dim - 1
     if all(isequal(inv(T(d))), cone.α)
@@ -193,7 +197,7 @@ function hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::HypoPowerMean{T},
-    ) where {T <: Real}
+) where {T <: Real}
     @assert cone.grad_updated
     @views w = cone.point[2:end]
     α = cone.α
@@ -252,7 +256,7 @@ function inv_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::HypoPowerMean{T},
-    ) where {T <: Real}
+) where {T <: Real}
     @assert cone.grad_updated
     u = cone.point[1]
     @views w = cone.point[2:end]

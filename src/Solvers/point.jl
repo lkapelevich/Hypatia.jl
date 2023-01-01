@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 primal dual point
 =#
 
@@ -21,10 +28,7 @@ mutable struct Point{T <: Real}
     Point{T}() where {T <: Real} = new{T}()
 end
 
-function Point(
-    model::Models.Model{T};
-    ztsk_only::Bool = false,
-    ) where {T <: Real}
+function Point(model::Models.Model{T}; ztsk_only::Bool = false) where {T <: Real}
     point = Point{T}()
     (n, p, q) = (model.n, model.p, model.q)
     tau_idx = n + p + q + 1
@@ -45,10 +49,14 @@ function Point(
 
     point.z_views = [view(point.z, idxs) for idxs in model.cone_idxs]
     point.s_views = [view(point.s, idxs) for idxs in model.cone_idxs]
-    point.dual_views = [Cones.use_dual_barrier(cone_k) ? point.s_views[k] :
-        point.z_views[k] for (k, cone_k) in enumerate(model.cones)]
-    point.primal_views = [Cones.use_dual_barrier(cone_k) ? point.z_views[k] :
-        point.s_views[k] for (k, cone_k) in enumerate(model.cones)]
+    point.dual_views = [
+        Cones.use_dual_barrier(cone_k) ? point.s_views[k] : point.z_views[k] for
+        (k, cone_k) in enumerate(model.cones)
+    ]
+    point.primal_views = [
+        Cones.use_dual_barrier(cone_k) ? point.z_views[k] : point.s_views[k] for
+        (k, cone_k) in enumerate(model.cones)
+    ]
 
     return point
 end

@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 formulates and solves the (dual of the) polynomial envelope problem described in:
 D. Papp and S. Yildiz. Sum-of-squares optimization without semidefinite programming
 available at https://arxiv.org/abs/1712.01792
@@ -20,8 +27,7 @@ function build(inst::PolyEnvelopeNative{T}) where {T <: Real}
     domain = PolyUtils.BoxDomain{T}(-ones(T, n), ones(T, n))
 
     # generate interpolation
-    (U, pts, Ps, _, w) = PolyUtils.interpolate(domain,
-        inst.env_halfdeg, get_quadr = true)
+    (U, pts, Ps, _, w) = PolyUtils.interpolate(domain, inst.env_halfdeg, get_quadr = true)
 
     # generate random data
     L = binomial(n + inst.rand_halfdeg, n)
@@ -43,8 +49,10 @@ function build(inst::PolyEnvelopeNative{T}) where {T <: Real}
         h = zeros(T, num_polys * U)
     end
 
-    cones = Cones.Cone{T}[Cones.WSOSInterpNonnegative{T, T}(U, Ps,
-        use_dual = !inst.primal_wsos) for k in 1:num_polys]
+    cones = Cones.Cone{T}[
+        Cones.WSOSInterpNonnegative{T, T}(U, Ps, use_dual = !inst.primal_wsos) for
+        k in 1:num_polys
+    ]
 
     model = Models.Model{T}(c, A, b, G, h, cones)
     return model

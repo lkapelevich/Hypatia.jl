@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 Conic models and utilities.
 """
@@ -17,9 +24,9 @@ mutable struct Model{T <: Real}
     q::Int
     obj_offset::T
     c::Vector{T}
-    A
+    A::Any
     b::Vector{T}
-    G
+    G::Any
     h::Vector{T}
     cones::Vector{Cones.Cone{T}}
     cone_idxs::Vector{UnitRange{Int}}
@@ -33,7 +40,7 @@ mutable struct Model{T <: Real}
         h::Vector{T},
         cones::Vector{<:Cones.Cone{T}};
         obj_offset::T = zero(T),
-        ) where {T <: Real}
+    ) where {T <: Real}
         model = new{T}()
 
         model.n = length(c)

@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 D-optimal experiment design maximizes the determinant of the information matrix
 adapted from Boyd and Vandenberghe, "Convex Optimization", section 7.5
 maximize    F(V × Diagonal(x) × V')
@@ -38,8 +45,10 @@ function build(inst::DOptimalDesignJuMP{T}) where {T <: Float64}
 
     if inst.logdet_obj || inst.rootdet_obj
         # information matrix lower triangle
-        v1 = [JuMP.@expression(model,
-            sum(V[i, k] * np[k] * V[j, k] for k in 1:p)) for i in 1:q for j in 1:i]
+        v1 = [
+            JuMP.@expression(model, sum(V[i, k] * np[k] * V[j, k] for k in 1:p)) for
+            i in 1:q for j in 1:i
+        ]
         if inst.logdet_obj
             JuMP.@constraint(model, vcat(hypo, 1, v1) in MOI.LogDetConeTriangle(q))
         else
@@ -50,12 +59,15 @@ function build(inst::DOptimalDesignJuMP{T}) where {T <: Float64}
         JuMP.@variable(model, L[i in 1:q, j in 1:i])
         JuMP.@variable(model, W[1:p, 1:q])
         VW = V * W
-        JuMP.@constraints(model, begin
-            [i in 1:q, j in 1:i], VW[i, j] == L[i, j]
-            [i in 1:q, j in (i + 1):q], VW[i, j] == 0
-            vcat(hypo, [L[i, i] for i in 1:q]) in MOI.GeometricMeanCone(1 + q)
-            [i in 1:p], vcat(sqrt(q) * np[i], W[i, :]) in JuMP.SecondOrderCone()
-        end)
+        JuMP.@constraints(
+            model,
+            begin
+                [i in 1:q, j in 1:i], VW[i, j] == L[i, j]
+                [i in 1:q, j in (i + 1):q], VW[i, j] == 0
+                vcat(hypo, [L[i, i] for i in 1:q]) in MOI.GeometricMeanCone(1 + q)
+                [i in 1:p], vcat(sqrt(q) * np[i], W[i, :]) in JuMP.SecondOrderCone()
+            end
+        )
     end
 
     return model

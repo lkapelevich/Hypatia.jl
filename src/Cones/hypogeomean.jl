@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -42,10 +49,7 @@ mutable struct HypoGeoMean{T <: Real} <: Cone{T}
     dual_ϕ::T
     tempw::Vector{T}
 
-    function HypoGeoMean{T}(
-        dim::Int;
-        use_dual::Bool = false,
-        ) where {T <: Real}
+    function HypoGeoMean{T}(dim::Int; use_dual::Bool = false) where {T <: Real}
         @assert dim >= 2
         cone = new{T}()
         cone.use_dual_barrier = use_dual
@@ -172,7 +176,7 @@ function hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::HypoGeoMean{T},
-    ) where {T <: Real}
+) where {T <: Real}
     @assert cone.grad_updated
     @views w = cone.point[2:end]
     di = cone.di
@@ -235,7 +239,7 @@ function inv_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::HypoGeoMean{T},
-    ) where {T <: Real}
+) where {T <: Real}
     @assert cone.grad_updated
     @views w = cone.point[2:end]
     ζ = cone.ζ

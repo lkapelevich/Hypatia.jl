@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -33,13 +40,10 @@ mutable struct LinMatrixIneq{T <: Real} <: Cone{T}
     use_hess_prod_slow_updated::Bool
 
     sumA::AbstractMatrix
-    fact
+    fact::Any
     sumAinvAs::Vector
 
-    function LinMatrixIneq{T}(
-        As::Vector;
-        use_dual::Bool = false,
-        ) where {T <: Real}
+    function LinMatrixIneq{T}(As::Vector; use_dual::Bool = false) where {T <: Real}
         dim = length(As)
         @assert dim > 1
         side = 0
@@ -66,24 +70,28 @@ mutable struct LinMatrixIneq{T <: Real} <: Cone{T}
     end
 end
 
-reset_data(cone::LinMatrixIneq) = (cone.feas_updated = cone.grad_updated =
-    cone.hess_updated = cone.inv_hess_updated = cone.hess_fact_updated =
-    cone.use_hess_prod_slow = cone.use_hess_prod_slow_updated = false)
+function reset_data(cone::LinMatrixIneq)
+    return (
+        cone.feas_updated =
+            cone.grad_updated =
+                cone.hess_updated =
+                    cone.inv_hess_updated =
+                        cone.hess_fact_updated =
+                            cone.use_hess_prod_slow =
+                                cone.use_hess_prod_slow_updated = false
+    )
+end
 
 get_nu(cone::LinMatrixIneq) = cone.side
 
-function set_initial_point!(
-    arr::AbstractVector,
-    cone::LinMatrixIneq{T},
-    ) where {T <: Real}
+function set_initial_point!(arr::AbstractVector, cone::LinMatrixIneq{T}) where {T <: Real}
     arr .= 0
     arr[1] = 1
     return arr
 end
 
-lmi_fact(arr::AbstractSparseMatrix) = cholesky(Hermitian(arr),
-    shift=false, check=false)
-lmi_fact(arr::AbstractMatrix) = cholesky!(Hermitian(arr), check=false)
+lmi_fact(arr::AbstractSparseMatrix) = cholesky(Hermitian(arr), shift = false, check = false)
+lmi_fact(arr::AbstractMatrix) = cholesky!(Hermitian(arr), check = false)
 
 function update_feas(cone::LinMatrixIneq{T}) where {T <: Real}
     @assert !cone.feas_updated
@@ -115,7 +123,7 @@ function update_hess(cone::LinMatrixIneq)
     H = cone.hess.data
     sumAinvAs = cone.sumAinvAs
 
-    @inbounds for i in 1:cone.dim, j in i:cone.dim
+    @inbounds for i in 1:(cone.dim), j in i:(cone.dim)
         H[i, j] = real(dot(sumAinvAs[i], sumAinvAs[j]'))
     end
 
@@ -123,11 +131,7 @@ function update_hess(cone::LinMatrixIneq)
     return cone.hess
 end
 
-function hess_prod_slow!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::LinMatrixIneq,
-    )
+function hess_prod_slow!(prod::AbstractVecOrMat, arr::AbstractVecOrMat, cone::LinMatrixIneq)
     cone.use_hess_prod_slow_updated || update_use_hess_prod_slow(cone)
     @assert cone.hess_updated
     cone.use_hess_prod_slow || return hess_prod!(prod, arr, cone)
@@ -136,8 +140,8 @@ function hess_prod_slow!(
     sumAinvAs = cone.sumAinvAs
 
     @inbounds for j in 1:size(arr, 2)
-        j_mat = Hermitian(sum(arr[i, j] * sumAinvAs[i] for i in 1:cone.dim))
-        for i in 1:cone.dim
+        j_mat = Hermitian(sum(arr[i, j] * sumAinvAs[i] for i in 1:(cone.dim)))
+        for i in 1:(cone.dim)
             prod[i, j] = real(dot(j_mat, sumAinvAs[i]))
         end
     end
@@ -152,7 +156,7 @@ function dder3(cone::LinMatrixIneq, dir::AbstractVector)
 
     dir_mat = sum(d_i * mat_i for (d_i, mat_i) in zip(dir, sumAinvAs))
     Z = Hermitian(dir_mat * dir_mat')
-    @inbounds for i in 1:cone.dim
+    @inbounds for i in 1:(cone.dim)
         dder3[i] = real(dot(Z, sumAinvAs[i]))
     end
 

@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -46,9 +53,7 @@ mutable struct PosSemidefTri{T <: Real, R <: RealOrComplex{T}} <: Cone{T}
     dual_fact_mat::Cholesky{R}
     nt_svd
 
-    function PosSemidefTri{T, R}(
-        dim::Int,
-        ) where {T <: Real, R <: RealOrComplex{T}}
+    function PosSemidefTri{T, R}(dim::Int) where {T <: Real, R <: RealOrComplex{T}}
         @assert dim >= 1
         cone = new{T, R}()
         cone.dim = dim
@@ -73,7 +78,7 @@ use_sqrt_scal_hess_oracles(::Int, cone::PosSemidefTri) = true
 
 function setup_extra_data!(
     cone::PosSemidefTri{T, R},
-    ) where {T <: Real, R <: RealOrComplex{T}}
+) where {T <: Real, R <: RealOrComplex{T}}
     cone.mat = zeros(R, cone.side, cone.side)
     cone.dual_mat = zero(cone.mat)
     cone.mat2 = zero(cone.mat)
@@ -91,7 +96,7 @@ function set_initial_point!(arr::AbstractVector, cone::PosSemidefTri)
     incr = (cone.is_complex ? 2 : 1)
     arr .= 0
     k = 1
-    @inbounds for i in 1:cone.side
+    @inbounds for i in 1:(cone.side)
         arr[k] = 1
         k += incr * i + 1
     end
@@ -288,7 +293,7 @@ function inv_sqrt_hess_prod!(
     prod::AbstractVecOrMat,
     arr::AbstractVecOrMat,
     cone::PosSemidefTri,
-    )
+)
     @assert is_feas(cone)
 
     @inbounds for i in 1:size(arr, 2)

@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 nearest correlation matrix, in the quantum relative entropy sense, adapted from
 https://github.com/hfawzi/cvxquad/blob/master/examples/nearest_correlation_matrix.m
 =#
@@ -23,8 +30,10 @@ function build(inst::NearestCorrelationJuMP{T}) where {T <: Float64}
 
     JuMP.@variable(model, y)
     JuMP.@objective(model, Min, y)
-    JuMP.@constraint(model, vcat(y, x_vec, m_vec) in
-        Hypatia.EpiTrRelEntropyTriCone{T}(1 + 2 * vec_dim))
+    JuMP.@constraint(
+        model,
+        vcat(y, x_vec, m_vec) in Hypatia.EpiTrRelEntropyTriCone{T}(1 + 2 * vec_dim)
+    )
 
     return model
 end

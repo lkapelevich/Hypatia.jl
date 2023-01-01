@@ -1,3 +1,9 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
 
 insts = OrderedDict()
 insts["minimal"] = [
@@ -6,7 +12,7 @@ insts["minimal"] = [
     ((1, 3, 2, true, false, false, true, false),),
     ((1, 3, 2, true, false, true, false, false),),
     ((1, 3, 2, true, false, false, true, true),),
-    ]
+]
 # insts["fast"] = [] # TODO
 insts["various"] = [
     ((5, 20, 20, false, true, false, false, false),),
@@ -24,5 +30,5 @@ insts["various"] = [
     ((8, 50, 30, true, false, false, true, false),),
     ((8, 50, 30, true, false, true, false, false),),
     ((8, 50, 30, true, false, false, true, true),),
-    ]
+]
 return (SparseLMIJuMP, insts)

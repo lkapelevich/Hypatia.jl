@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 utilities for benchmark scripts
 =#
 
@@ -44,7 +51,7 @@ function setup_benchmark_dataframe()
         setup_time = Float64[],
         check_time = Float64[],
         total_time = Float64[],
-        )
+    )
     DataFrames.allowmissing!(perf, 11:DataFrames.ncol(perf))
     DataFrames.allowmissing!(perf, [:extender, :solver_options, :nondefaults])
     return perf
@@ -80,11 +87,15 @@ function write_perf(
     perf::DataFrames.DataFrame,
     results_path::Union{String, Nothing},
     new_perf::NamedTuple,
-    )
+)
     push!(perf, new_perf, cols = :subset)
     if !isnothing(results_path)
-        CSV.write(results_path, perf[end:end, :], transform =
-            (col, val) -> something(val, missing), append = true)
+        CSV.write(
+            results_path,
+            perf[end:end, :],
+            transform = (col, val) -> something(val, missing),
+            append = true,
+        )
     end
     return
 end
@@ -97,7 +108,7 @@ function run_instance_set(
     script_verbose::Bool,
     perf::DataFrames.DataFrame,
     results_path::Union{String, Nothing} = nothing,
-    )
+)
     for (inst_num, inst) in enumerate(inst_subset)
         extender_name = get_extender(inst, ex_type_T)
         nondefaults = get_nondefaults(inst, ex_type_T)
@@ -112,12 +123,23 @@ function run_instance_set(
         @testset "$test_info" begin
             println(test_info, " ...")
 
-            total_time = @elapsed run_perf = run_instance(ex_type_T, inst...,
-                default_options = new_default_options, verbose = script_verbose)
+            total_time = @elapsed run_perf = run_instance(
+                ex_type_T,
+                inst...,
+                default_options = new_default_options,
+                verbose = script_verbose,
+            )
 
-            new_perf = (; info_perf..., run_perf..., total_time, inst_num,
-                :solver => "Hypatia", :inst_data => inst[1],
-                :extender => extender_name, :nondefaults => nondefaults)
+            new_perf = (;
+                info_perf...,
+                run_perf...,
+                total_time,
+                inst_num,
+                :solver => "Hypatia",
+                :inst_data => inst[1],
+                :extender => extender_name,
+                :nondefaults => nondefaults,
+            )
             write_perf(perf, results_path, new_perf)
 
             @printf("%8.2e seconds\n", total_time)

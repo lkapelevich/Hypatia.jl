@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 minimize a spectral function of a gram matrix of a polynomial
 =#
 
@@ -11,8 +18,8 @@ struct CentralPolyMatJuMP{T <: Real} <: ExampleInstanceJuMP{T}
 end
 
 function build(inst::CentralPolyMatJuMP{T}) where {T <: Float64}
-    DynamicPolynomials.@polyvar x[1:inst.m]
-    basis = DynamicPolynomials.monomials(x, 0:inst.halfdeg)
+    DynamicPolynomials.@polyvar x[1:(inst.m)]
+    basis = DynamicPolynomials.monomials(x, 0:(inst.halfdeg))
     L = length(basis)
 
     Q0 = randn(L, L)
@@ -43,7 +50,7 @@ function build(inst::CentralPolyMatJuMP{T}) where {T <: Float64}
     return model
 end
 
-function test_extra(inst::CentralPolyMatJuMP{T}, model::JuMP.Model) where T
+function test_extra(inst::CentralPolyMatJuMP{T}, model::JuMP.Model) where {T}
     stat = JuMP.termination_status(model)
     @test stat == MOI.OPTIMAL
     (stat == MOI.OPTIMAL) || return
@@ -57,6 +64,6 @@ function test_extra(inst::CentralPolyMatJuMP{T}, model::JuMP.Model) where T
         λ = pos_only(λ)
     end
     obj_result = get_val(λ, inst.ext)
-    @test JuMP.objective_value(model) ≈ obj_result atol=tol rtol=tol
+    @test JuMP.objective_value(model) ≈ obj_result atol = tol rtol = tol
     return
 end

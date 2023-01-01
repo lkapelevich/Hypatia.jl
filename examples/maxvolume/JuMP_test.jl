@@ -1,11 +1,14 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
 
 relaxed_tols = (default_tol_relax = 100,)
 insts = OrderedDict()
-insts["minimal"] = [
-    ((2, true, false),),
-    ((2, false, true),),
-    ((2, false, true), :SOCExpPSD, relaxed_tols),
-    ]
+insts["minimal"] =
+    [((2, true, false),), ((2, false, true),), ((2, false, true), :SOCExpPSD, relaxed_tols)]
 insts["fast"] = [
     ((10, true, false),),
     ((10, false, true), nothing, relaxed_tols),
@@ -14,7 +17,7 @@ insts["fast"] = [
     ((100, false, true), nothing, relaxed_tols),
     ((100, false, true), :SOCExpPSD, relaxed_tols),
     ((1000, true, false),),
-    ]
+]
 insts["various"] = [
     ((500, true, false),),
     ((500, false, true),),
@@ -27,5 +30,5 @@ insts["various"] = [
     ((2000, true, false),),
     ((2000, false, true),),
     ((2000, true, false), :SOCExpPSD),
-    ]
+]
 return (MaxVolumeJuMP, insts)

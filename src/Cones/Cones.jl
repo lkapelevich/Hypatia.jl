@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 Proper cone definitions, oracles, and utilities.
 """
@@ -197,21 +204,13 @@ end
 
 setup_extra_data!(cone::Cone) = nothing
 
-load_point(
-    cone::Cone{T},
-    point::AbstractVector{T},
-    scal::T,
-    ) where {T <: Real} = (@. cone.point = scal * point)
+function load_point(cone::Cone{T}, point::AbstractVector{T}, scal::T) where {T <: Real}
+    return (@. cone.point = scal * point)
+end
 
-load_point(
-    cone::Cone,
-    point::AbstractVector,
-    ) = copyto!(cone.point, point)
+load_point(cone::Cone, point::AbstractVector) = copyto!(cone.point, point)
 
-load_dual_point(
-    cone::Cone,
-    point::AbstractVector,
-    ) = copyto!(cone.dual_point, point)
+load_dual_point(cone::Cone, point::AbstractVector) = copyto!(cone.dual_point, point)
 
 function alloc_hess!(cone::Cone{T}) where {T <: Real}
     dim = dimension(cone)
@@ -305,11 +304,7 @@ function update_dual_grad(cone::Cone{T}) where {T <: Real}
 end
 
 # only use if use_sqrt_hess_oracles is true
-function sqrt_hess_prod!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::Cone,
-    )
+function sqrt_hess_prod!(prod::AbstractVecOrMat, arr::AbstractVecOrMat, cone::Cone)
     @assert cone.hess_fact_updated
     mul!(prod, cone.hess_fact.U, arr)
     return prod
@@ -328,11 +323,7 @@ function sqrt_scal_hess_prod!(
 end
 
 # only use if use_sqrt_hess_oracles is true
-function inv_sqrt_hess_prod!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::Cone,
-    )
+function inv_sqrt_hess_prod!(prod::AbstractVecOrMat, arr::AbstractVecOrMat, cone::Cone)
     @assert cone.hess_fact_updated
     # TODO try equilibration, iterative refinement etc like posvx/sysvx
     ldiv!(prod, cone.hess_fact.U', arr)
@@ -363,11 +354,9 @@ function update_use_hess_prod_slow(cone::Cone{T}) where {T <: Real}
     return
 end
 
-hess_prod_slow!(
-    prod::AbstractVecOrMat,
-    arr::AbstractVecOrMat,
-    cone::Cone,
-    ) = hess_prod!(prod, arr, cone)
+function hess_prod_slow!(prod::AbstractVecOrMat, arr::AbstractVecOrMat, cone::Cone)
+    return hess_prod!(prod, arr, cone)
+end
 
 function update_hess_fact(cone::Cone{T}) where {T <: Real}
     cone.hess_fact_updated && return true
@@ -444,9 +433,9 @@ function update_inv_hess(cone::Cone)
 end
 
 # number of nonzeros in the Hessian and inverse
-hess_nz_count(cone::Cone) = dimension(cone) ^ 2
+hess_nz_count(cone::Cone) = dimension(cone)^2
 hess_nz_count_tril(cone::Cone) = svec_length(dimension(cone))
-inv_hess_nz_count(cone::Cone) = dimension(cone) ^ 2
+inv_hess_nz_count(cone::Cone) = dimension(cone)^2
 inv_hess_nz_count_tril(cone::Cone) = svec_length(dimension(cone))
 # row indices of nonzero elements in column j
 hess_nz_idxs_col(cone::Cone, j::Int) = 1:dimension(cone)
@@ -459,7 +448,7 @@ function check_numerics(
     cone::Cone{T},
     gtol::T = sqrt(sqrt(eps(T))),
     Htol::T = 10sqrt(gtol),
-    ) where {T <: Real}
+) where {T <: Real}
     g = grad(cone)
     dim = length(g)
     nu = get_nu(cone)
@@ -481,7 +470,7 @@ function get_proxsqr(
     irtmu::T,
     ::Bool,
     negtol::T = sqrt(eps(T)),
-    ) where {T <: Real}
+) where {T <: Real}
     g = grad(cone)
     vec1 = cone.vec1
     vec2 = cone.vec2

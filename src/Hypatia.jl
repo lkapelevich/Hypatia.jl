@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 A Julia package for generic conic optimization with interior point algorithms.
 """
@@ -15,10 +22,12 @@ include("linearalgebra/sparse.jl")
 # optional dependencies using Requires.jl
 import Requires
 function __init__()
-    Requires.@require Pardiso =
-        "46dd5b70-b6fb-5a00-ae2d-e8fea33afaf2" include("linearalgebra/Pardiso.jl")
-    Requires.@require HSL =
-        "34c5aeac-e683-54a6-a0e9-6e0fdc586c50" include("linearalgebra/HSL.jl")
+    Requires.@require Pardiso = "46dd5b70-b6fb-5a00-ae2d-e8fea33afaf2" include(
+        "linearalgebra/Pardiso.jl",
+    )
+    Requires.@require HSL = "34c5aeac-e683-54a6-a0e9-6e0fdc586c50" include(
+        "linearalgebra/HSL.jl",
+    )
 end
 
 # submodules

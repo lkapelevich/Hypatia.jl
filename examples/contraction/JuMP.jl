@@ -1,4 +1,11 @@
 #=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
+#=
 contraction analysis example adapted from
 "Stability and robustness analysis of nonlinear systems via contraction metrics
 and SOS programming" by Aylward, E.M., Parrilo, P.A. and Slotine, J.J.E
@@ -34,8 +41,11 @@ function build(inst::ContractionJuMP{T}) where {T <: Float64}
     dynamics = [dx1dt; dx2dt]
 
     model = JuMP.Model()
-    JuMP.@variable(model, polys[1:3], PolyJuMP.Poly(
-        PolyJuMP.MultivariateBases.FixedPolynomialBasis(lagrange_polys)))
+    JuMP.@variable(
+        model,
+        polys[1:3],
+        PolyJuMP.Poly(PolyJuMP.MultivariateBases.FixedPolynomialBasis(lagrange_polys))
+    )
 
     M = [polys[1] polys[2]; polys[2] polys[3]]
     dMdt = [dot(DP.differentiate(M[i, j], x), dynamics) for i in 1:n, j in 1:n]
@@ -47,10 +57,14 @@ function build(inst::ContractionJuMP{T}) where {T <: Float64}
         deg_R = maximum(DP.maxdegree.(R))
         d_R = div(deg_R + 1, 2)
         (U_R, pts_R, Ps_R) = PolyUtils.interpolate(dom, d_R)
-        M_gap = [M[i, j](pts_M[u, :]) - (i == j ? delta : 0.0)
-            for i in 1:n for j in 1:i for u in 1:U_M]
-        R_gap = [-R[i, j](pts_R[u, :]) - (i == j ? delta : 0.0)
-            for i in 1:n for j in 1:i for u in 1:U_R]
+        M_gap = [
+            M[i, j](pts_M[u, :]) - (i == j ? delta : 0.0) for i in 1:n for j in 1:i for
+            u in 1:U_M
+        ]
+        R_gap = [
+            -R[i, j](pts_R[u, :]) - (i == j ? delta : 0.0) for i in 1:n for j in 1:i for
+            u in 1:U_R
+        ]
 
         wsosmatT = Hypatia.WSOSInterpPosSemidefTriCone{T}
         rt2 = sqrt(2)
@@ -67,7 +81,7 @@ function build(inst::ContractionJuMP{T}) where {T <: Float64}
     return model
 end
 
-function test_extra(inst::ContractionJuMP{T}, model::JuMP.Model) where T
+function test_extra(inst::ContractionJuMP{T}, model::JuMP.Model) where {T}
     stat = JuMP.termination_status(model)
     @test stat == (inst.is_feas ? MOI.OPTIMAL : MOI.INFEASIBLE)
     return

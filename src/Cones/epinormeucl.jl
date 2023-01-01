@@ -1,3 +1,10 @@
+#=
+Copyright (c) 2018-2022 Chris Coey, Lea Kapelevich, and contributors
+
+This Julia package Hypatia.jl is released under the MIT license; see LICENSE
+file in the root directory or at https://github.com/chriscoey/Hypatia.jl
+=#
+
 """
 $(TYPEDEF)
 
@@ -61,17 +68,14 @@ use_sqrt_scal_hess_oracles(::Int, cone::EpiNormEucl{T}) where {T <: Real} = true
 
 get_nu(cone::EpiNormEucl) = 2
 
-function set_initial_point!(
-    arr::AbstractVector,
-    cone::EpiNormEucl{T},
-    ) where {T <: Real}
+function set_initial_point!(arr::AbstractVector, cone::EpiNormEucl{T}) where {T <: Real}
     arr .= 0
     arr[1] = sqrt(T(get_nu(cone)))
     return arr
 end
 
 # TODO refac with dual feas check
-function update_feas(cone::EpiNormEucl{T}) where T
+function update_feas(cone::EpiNormEucl{T}) where {T}
     @assert !cone.feas_updated
     u = cone.point[1]
 
@@ -87,7 +91,7 @@ function update_feas(cone::EpiNormEucl{T}) where T
     return cone.is_feas
 end
 
-function is_dual_feas(cone::EpiNormEucl{T}) where T
+function is_dual_feas(cone::EpiNormEucl{T}) where {T}
     u = cone.dual_point[1]
 
     if u > eps(T)
@@ -271,7 +275,7 @@ function sqrt_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::EpiNormEucl{T},
-    ) where {T <: Real}
+) where {T <: Real}
     @assert cone.is_feas
     u = cone.point[1]
     w = @view cone.point[2:end]
@@ -296,7 +300,7 @@ function inv_sqrt_hess_prod!(
     prod::AbstractVecOrMat{T},
     arr::AbstractVecOrMat{T},
     cone::EpiNormEucl{T},
-    ) where {T <: Real}
+) where {T <: Real}
     @assert cone.is_feas
     u = cone.point[1]
     w = @view cone.point[2:end]
